@@ -1,0 +1,84 @@
+# Compila Eureka_Utils.exe y Eureka_Utils_Portable.exe, los firma con SignPath (gratuito para
+# código abierto mediante SignPath Foundation) y los publica en la release de la etiqueta.
+#
+# - Al subir una etiqueta v* (por ejemplo v2.1.0) se crea la release con los ejecutables.
+# - Mientras SignPath no esté configurado (variable SIGNPATH_ORGANIZATION_ID vacía) los
+#   ejecutables se publican SIN firmar. Al configurarlo, los siguientes se publican firmados.
+# - También se puede lanzar a mano (Actions > Release > Run workflow) para obtener los .exe
+#   como artefacto sin publicar release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Compilar los ejecutables
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File Build\Build-Exe.ps1
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item Eureka_Utils.exe, Dist\Eureka_Utils_Portable.exe out\
+
+      - name: Subir ejecutables sin firmar
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eureka_Utils-sin-firmar
+          path: out/*.exe
+          if-no-files-found: error
+
+      - name: Firmar con SignPath
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Preparar archivos de la release
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          if (Test-Path signed) { Copy-Item signed\*.exe release\; $state = 'firmados' } else { Copy-Item out\*.exe release\; $state = 'sin firmar' }
+          Get-ChildItem release | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            "{0}: {1} ({2})" -f $_.Name, $sig.Status, $sig.SignerCertificate.Subject
+          }
+          "SIGN_STATE=$state" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Subir ejecutables finales
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eureka_Utils
+          path: release/*.exe
+
+      - name: Publicar en la release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Eureka_Utils $($tag.TrimStart('v'))" --notes-file .github\release-notes.md
+          }
+          gh release upload $tag (Get-ChildItem release\*.exe).FullName --clobber
+          "Ejecutables $env:SIGN_STATE publicados en $tag"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Configuración de artefacto para SignPath: pégala en SignPath (proyecto Eureka_Utils >
+     Artifact configurations > New). El artefacto de GitHub Actions es un ZIP que contiene
+     los dos ejecutables; se firman con Authenticode. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="Eureka_Utils.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="Eureka_Utils_Portable.exe">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

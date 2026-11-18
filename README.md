@@ -38,6 +38,29 @@ Descarga la última versión en **Releases** (`Eureka_Utils_Portable.exe`, un so
 | `Build\` | Generación de `Eureka_Utils.exe` y `Eureka_Utils_Portable.exe` |
 | `Docs\` | Documentación (instalación, manual, USB, técnica) con capturas |
 
+## Política de firma de código (Code signing policy)
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Firma de código gratuita proporcionada por SignPath.io, certificado de SignPath Foundation.
+
+- Los ejecutables publicados en *Releases* se compilan y firman automáticamente en **GitHub Actions** (`.github/workflows/release.yml`) a partir del código de este repositorio; nunca se firman binarios compilados fuera de ese proceso.
+- **Equipo y funciones**
+  - Autores (*committers*) y revisores (*reviewers*): [juanraul86](https://github.com/juanraul86)
+  - Aprobadores de la firma (*approvers*): [juanraul86](https://github.com/juanraul86)
+- Cada solicitud de firma la aprueba manualmente un aprobador. Las cuentas del equipo usan autenticación multifactor.
+- Las versiones publicadas antes de activar la firma se indican como "sin firmar" en sus notas.
+
+## Privacidad
+
+Este programa no transfiere ninguna información a otros sistemas en red salvo que lo solicite expresamente el usuario o la persona que lo instala o lo utiliza. Las conexiones que realiza son las que el usuario lanza desde la interfaz: winget y Microsoft Store (instalar y actualizar software), los servicios de inicio de sesión de Microsoft (comprobar una cuenta profesional que el usuario escribe), la descarga de Microsoft Safety Scanner y las páginas web de descarga que el usuario abre. No incluye telemetría.
+
+*This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.*
+
+## Licencia
+
+[MIT](LICENSE)
+
 ## Generar los ejecutables
 
 ```powershell

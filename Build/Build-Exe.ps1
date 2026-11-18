@@ -79,8 +79,8 @@ $bw.Close()
 Copy-Item $ico (Join-Path $root 'UI\eureka_utils.ico') -Force
 
 # ---------------------------------------------------------------- payload (carpeta de Eureka_Utils)
-$exclude = '^(Logs|Exports|Dist|Build|Docs|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.exe$|\.log$'
-$files = Get-ChildItem $root -Recurse -File | Where-Object { $_.FullName.Substring($root.Length + 1) -notmatch $exclude }
+$exclude = '^(\.git|\.github|\.signpath|Logs|Exports|Dist|Build|Docs|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.exe$|\.log$'
+$files = Get-ChildItem $root -Recurse -File -Force | Where-Object { $_.FullName.Substring($root.Length + 1) -notmatch $exclude }
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 function New-CfgZip([string]$Path, $Items, [string]$Prefix) {
     if (Test-Path $Path) { Remove-Item $Path -Force }
@@ -119,7 +119,7 @@ else {
 }
 
 # ---------------------------------------------------------------- ZIP de distribución (incluye Eureka_Utils.exe)
-$files2 = Get-ChildItem $root -Recurse -File | Where-Object { $rel = $_.FullName.Substring($root.Length + 1); $rel -notmatch '^(Logs|Exports|Dist|Build\\obj|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.log$' }
+$files2 = Get-ChildItem $root -Recurse -File -Force | Where-Object { $rel = $_.FullName.Substring($root.Length + 1); $rel -notmatch '^(\.git|Logs|Exports|Dist|Build\\obj|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.log$' }
 New-CfgZip (Join-Path $dist 'Eureka_Utils.zip') $files2 'Eureka_Utils/'
 
 Get-ChildItem (Join-Path $root 'Eureka_Utils.exe'), (Join-Path $dist '*') | Select-Object Name, @{ n = 'MB'; e = { '{0:N2}' -f ($_.Length / 1MB) } } | Format-Table -AutoSize
