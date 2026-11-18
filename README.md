@@ -1,42 +1,50 @@
-# Eureka_Utils
+# Eureka_Utils · Configurador de equipos
 
-Utilidad **portable** para configurar, auditar y diagnosticar equipos Windows 11, de uso personal y profesional. Interfaz en **español, English, Français, Português, Euskara, Català, Valencià y Galego**, en modo claro u oscuro.
+Herramienta portable para preparar equipos Windows 11 de uso personal y profesional. Detecta el hardware (incluida la tarjeta gráfica NVIDIA/AMD/Intel), quita bloatware, instala software explicando sus dependencias y su consumo de recursos, mantiene todo actualizado con winget, aplica ajustes, configura cuentas (con verificación en dos pasos), une el equipo a Active Directory o a Microsoft Entra ID, sincroniza con Intune y crea USB de instalación de Windows 11 que dejan el equipo configurado sin intervención.
 
-- **Hardware**: CPU, RAM, discos y **tarjeta gráfica (NVIDIA / AMD / Intel)** con su controlador; compatibilidad con Windows 11 y recomendaciones.
-- **Software**: catálogo estilo *Centro de software* de SCCM (ofimática, gaming, streaming, IT: administración, soporte y ciberseguridad, desarrollo, creatividad...) con **dependencias** e **impacto en recursos**.
-- **Actualizaciones**: `winget upgrade` comprobado al abrir y listo para lanzarse con un botón. Se **verifica el resultado** y, si una app no se actualiza, se avisa y se ofrece su **enlace de descarga manual**.
-- **Bloatware**: detecta, quita y reinstala apps preinstaladas, indicando el riesgo de cada una.
-- **Ajustes** de Windows (energía, gaming, privacidad, seguridad, administración).
-- **Cuentas**: cuenta profesional de Microsoft 365 / Entra ID con **verificación en dos pasos** (MFA) y cuentas locales.
-- **Dominio e Intune**: AD, Entra ID e híbrida, sincronización con Intune, Autopilot y diagnóstico MDM.
-- **Diagnóstico**: estado del sistema, SFC, DISM, CHKDSK, memoria, eventos; **antivirus y malware** (Defender, análisis sin conexión, Microsoft Safety Scanner portátil para el USB) y acceso a las **consolas MMC**.
-- **Perfiles**: Personal, Oficina, Oficina IT, Gaming, Gaming + Streaming, Creativo, Desarrollo, Estudiante y Equipo básico.
-- **USB de instalación**: formatea e instala Windows 11+ y, en el primer inicio, Eureka_Utils aplica el perfil elegido.
+**Versión 2.0 · noviembre de 2026**
+
+## Características
+
+- **Hardware**: detección de CPU, RAM, discos, red y GPU, con recomendaciones y comprobación de compatibilidad con Windows 11 (TPM 2.0, UEFI, arranque seguro).
+- **Software**: catálogo estilo Centro de software con dependencias, requisitos e impacto en disco y RAM antes de instalar.
+- **Actualizaciones**: `winget upgrade` al abrir, con opción de actualizar todo o solo lo seleccionado.
+- **Bloatware**: retirada de apps preinstaladas con indicación del riesgo (bajo, medio, alto) y posibilidad de reinstalarlas.
+- **Ajustes de Windows**: energía, gaming, explorador, privacidad, seguridad y administración.
+- **Perfiles**: Personal, Oficina (Microsoft 365), Oficina IT, Gaming, Gaming + Streaming, Creativo, Desarrollo, Estudiante y Equipo básico.
+- **Cuentas y dominio**: cuentas locales, unión a Active Directory o Entra ID (la contraseña y el MFA los gestiona Microsoft; el configurador no los guarda), sincronización con Intune, unión híbrida y exportación del hash de Autopilot.
+- **USB de instalación**: formatea e instala Windows 11 y deja el equipo configurado con el perfil elegido.
+- **Informe**: exportación del estado del equipo en HTML.
+
+## Requisitos
+
+- Windows 11 y permisos de administrador.
+- Windows PowerShell 5.1 (incluido en Windows). Interfaz WPF, sin dependencias externas.
+- `winget` para instalar y actualizar software.
 
 ## Inicio rápido
 
-Descarga la última versión en **Releases** (`Eureka_Utils_Portable.exe`, un solo archivo) o clona el repositorio y ejecuta `Eureka_Utils.cmd`. Acepta el aviso de administrador.
+1. Copia la carpeta del configurador (o descomprime el .zip) en un USB, un recurso compartido o el propio equipo.
+2. Haz doble clic en `Configurador.exe` o en `Configurador.cmd` y acepta el aviso de administrador. Si Smart App Control bloquea el .exe, usa el .cmd.
+3. Espera a que termine la detección y revisa las pestañas Hardware, Actualizaciones y Bloatware.
+4. En la pestaña Equipo elige un perfil y pulsa **Revisar selección antes de aplicar** o **Aplicar perfil**.
 
-```powershell
-.\Eureka_Utils.cmd                                         # interfaz gráfica
-.\Eureka_Utils.cmd -Perfil "Oficina (Microsoft 365)" -Desatendido
-.\Eureka_Utils.cmd -ActualizarTodo                          # actualiza y verifica
-.\Eureka_Utils.cmd -ListarCatalogo
-```
+## Documentación
 
-> Los ejecutables no están firmados: con **Smart App Control** activado Windows los bloquea. Usa `Eureka_Utils.cmd` o fírmalos con `Build\Build-Exe.ps1 -CertificateThumbprint <huella>`.
+La carpeta `Docs/` incluye, en HTML y PDF:
 
-## Estructura
+- Guía de instalación
+- Manual de usuario
+- Guía del USB de instalación de Windows
+- Documentación técnica
 
-| Carpeta | Contenido |
-|---|---|
-| `Modules\` | Lógica (hardware, software, actualizaciones, bloatware, ajustes, cuentas, dominio, diagnóstico, seguridad, USB, perfiles, informes) |
-| `UI\` | Interfaz WPF (`MainWindow.xaml`, `Gui.ps1`) e idiomas (`I18n.ps1`) |
-| `Lang\` | Traducciones (`.tsv`, una columna por idioma) |
-| `Catalog\` | Catálogos editables: software, bloatware y perfiles |
-| `Packages\` | Instaladores locales (Office ODT) y escáneres de rescate |
-| `Build\` | Generación de `Eureka_Utils.exe` y `Eureka_Utils_Portable.exe` |
-| `Docs\` | Documentación (instalación, manual, USB, técnica) con capturas |
+## Aviso
+
+Esta herramienta modifica el equipo (software, ajustes, cuentas, dominio). Toda acción que lo cambia pide confirmación y se puede crear un punto de restauración antes de aplicar cambios. Revisa el perfil y la selección antes de ejecutarlo en equipos de producción.
+
+## Autor
+
+Juan Raúl Ruiz · [LinkedIn](https://www.linkedin.com/in/juanraulruizbartran)
 
 ## Política de firma de código (Code signing policy)
 
@@ -61,10 +69,3 @@ Este programa no transfiere ninguna información a otros sistemas en red salvo q
 
 [MIT](LICENSE)
 
-## Generar los ejecutables
-
-```powershell
-powershell -ExecutionPolicy Bypass -File Build\Build-Exe.ps1 [-CertificateThumbprint <huella>]
-```
-
-Requisitos: Windows 11 (o Windows 10 22H2), Windows PowerShell 5.1 y .NET Framework 4.8, incluidos en Windows. No necesita instalar nada más.
