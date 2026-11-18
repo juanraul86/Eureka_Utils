@@ -80,7 +80,7 @@ jobs:
           # Notas + huellas SHA-256 para que cualquiera compruebe que el archivo descargado no se ha alterado
           $notes = Get-Content .github\release-notes.md -Raw -Encoding UTF8
           $rows = Get-ChildItem release\*.exe | ForEach-Object { '| `{0}` | `{1}` |' -f $_.Name, (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
-          $notes += "`n`n### Huellas SHA-256 (ejecutables $env:SIGN_STATE)`n`n| Archivo | SHA-256 |`n|---|---|`n" + ($rows -join "`n") + "`n`nComprobación en PowerShell: ``Get-FileHash .\Eureka_Utils_Portable.exe -Algorithm SHA256```n"
+          $notes += "`n`n### Huellas SHA-256 (ejecutables $env:SIGN_STATE)`n`n| Archivo | SHA-256 |`n|---|---|`n" + ($rows -join "`n") + "`n`nComprobaci$([char]0xF3)n en PowerShell: ``Get-FileHash .\Eureka_Utils_Portable.exe -Algorithm SHA256```n"
           Set-Content -Path notes.md -Value $notes -Encoding UTF8
           $existing = @(gh release list --limit 100 --json tagName --jq '.[].tagName') -contains $tag
           if (-not $existing) {
