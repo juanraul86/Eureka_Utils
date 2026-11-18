@@ -4,6 +4,12 @@
 - **Eureka_Utils_Portable.exe**: un solo archivo con todo dentro. Llévalo a cualquier equipo y ejecútalo (pide permisos de administrador).
 - **Eureka_Utils.exe**: lanzador para usar junto al código del repositorio (descarga el código con *Code > Download ZIP*).
 
+### Novedades de la 2.3.0
+- **Arranque hasta 4 veces más rápido**: la detección inicial pasa de unos 18 s a menos de 5 s (el TPM ya no se consulta sin permisos de administrador y el procesador y la memoria se leen sin esperas innecesarias).
+- **Aviso de versión nueva** de Eureka_Utils con descarga verificada por SHA-256 (se puede desactivar).
+- **Pruebas automáticas** antes de cada publicación.
+- La versión aparece en el título de la ventana.
+
 ### Novedades de la 2.2.1
 - **Identificación del equipo** en la pestaña Hardware y en el informe: nombre comercial, número de serie, SKU y UUID; en Lenovo, Machine Type (MT) y modelo (MTM); en Dell, Service Tag y Express Service Code; en HP, número de producto. Botones para copiar los datos y abrir la garantía del fabricante.
 

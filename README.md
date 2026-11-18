@@ -2,7 +2,7 @@
 
 Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de uso personal y profesional. Detecta el hardware (incluida la tarjeta gráfica NVIDIA/AMD/Intel), quita bloatware, instala software explicando sus dependencias y su consumo de recursos, mantiene todo actualizado con winget, aplica ajustes, configura cuentas (con verificación en dos pasos), une el equipo a Active Directory o a Microsoft Entra ID, sincroniza con Intune, diagnostica el sistema y busca malware, y crea USB de instalación de Windows 11 que dejan el equipo configurado sin intervención.
 
-**Versión 2.2.1 · noviembre de 2026**
+**Versión 2.3.0 · noviembre de 2026**
 
 ## Características
 
@@ -21,7 +21,7 @@ Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de
 - **USB de instalación**: formatea e instala Windows 11 y deja el equipo configurado con el perfil elegido.
 - **Idiomas y tema**: interfaz en español, inglés, francés, portugués, euskera, catalán, valenciano y gallego, en modo claro u oscuro.
 - **Informe**: exportación del estado del equipo en HTML.
-- **Privacidad**: los registros e informes se guardan solo en el equipo; el botón **Borrar registros e informes** (pestaña Registro) los elimina.
+- **Actualización de Eureka_Utils**: aviso cuando hay una versión nueva y descarga verificada con la huella SHA-256 que publica GitHub (no sustituye nada por su cuenta). se guardan solo en el equipo; el botón **Borrar registros e informes** (pestaña Registro) los elimina.
 - **Seguridad**: comprobación de integridad SHA-256 de los scripts en el lanzador, protección de la carpeta contra modificaciones sin permisos de administrador, instaladores locales verificados por hash o firma Authenticode y huellas SHA-256 de cada release.
 
 ## Requisitos
@@ -70,7 +70,7 @@ Firma de código gratuita proporcionada por SignPath.io, certificado de SignPath
 
 ## Privacidad
 
-Este programa no transfiere ninguna información a otros sistemas en red salvo que lo solicite expresamente el usuario o la persona que lo instala o lo utiliza. Las conexiones que realiza son las que el usuario lanza desde la interfaz: winget y Microsoft Store (instalar y actualizar software), los servicios de inicio de sesión de Microsoft (comprobar una cuenta profesional que el usuario escribe), la descarga de Microsoft Safety Scanner y las páginas web de descarga que el usuario abre. No incluye telemetría.
+Este programa no transfiere ninguna información a otros sistemas en red salvo que lo solicite expresamente el usuario o la persona que lo instala o lo utiliza. Las conexiones que realiza son las que el usuario lanza desde la interfaz: winget y Microsoft Store (instalar y actualizar software), los servicios de inicio de sesión de Microsoft (comprobar una cuenta profesional que el usuario escribe), la descarga de Microsoft Safety Scanner y las páginas web de descarga que el usuario abre. Además, al abrir consulta de forma anónima la última versión publicada en GitHub (`api.github.com`, sin datos del equipo); se desactiva con la casilla *Comprobar al abrir* de la pestaña Equipo. No incluye telemetría.
 
 *This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.*
 

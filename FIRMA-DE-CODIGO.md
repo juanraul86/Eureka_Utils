@@ -17,7 +17,7 @@ SignPath Foundation firma gratis proyectos de **código abierto**. El certificad
 ## Pasos que tienes que hacer tú
 
 1. **Activa la autenticación multifactor en GitHub** (Settings > Password and authentication), si aún no la tienes. SignPath la exige al equipo del proyecto.
-2. **Comprueba que el repositorio es público** y que la primera release ya existe (la publica la tarea programada de las 23:01). SignPath revisa que el proyecto esté publicado y en uso.
+2. **Comprueba que el repositorio es público** y que hay releases publicadas (ya existen la v2.1.0, la v2.2.0 y la v2.2.1). SignPath revisa que el proyecto esté publicado y en uso.
 3. **Solicita la firma gratuita** en <https://signpath.org/apply>. Datos útiles para el formulario:
    - Proyecto: **Eureka_Utils**. Repositorio: `https://github.com/juanraul86/Eureka_Utils`.
    - Descripción: *Utilidad portable de código abierto para configurar, auditar y diagnosticar equipos Windows 11 (software, actualizaciones, bloatware, diagnóstico, antivirus, dominio/Intune y USB de instalación).*
@@ -36,11 +36,11 @@ SignPath Foundation firma gratis proyectos de **código abierto**. El certificad
      - `SIGNPATH_PROJECT_SLUG` = `Eureka_Utils`
      - `SIGNPATH_SIGNING_POLICY_SLUG` = `release-signing` (o el que te asignen)
      - `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` = `initial` (o el que hayas creado)
-7. **Publica una versión firmada**: crea y sube una etiqueta nueva (por ejemplo `v2.1.1`):
+7. **Publica una versión firmada**: crea y sube una etiqueta nueva (por ejemplo `v2.3.0`). Las etiquetas publicadas no se pueden mover ni sobrescribir (regla del repositorio), así que cada intento de firma necesita un número nuevo:
 
    ```powershell
-   git tag v2.1.1
-   git push origin v2.1.1
+   git tag -a v2.3.0 -m "Eureka_Utils 2.3.0"
+   git push origin v2.3.0
    ```
 
    GitHub Actions compila, envía la solicitud a SignPath, espera a que la apruebes en SignPath.io (recibirás un aviso) y publica en la release los ejecutables **firmados**.

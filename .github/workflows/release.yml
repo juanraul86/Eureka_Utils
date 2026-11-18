@@ -24,6 +24,10 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Pruebas automáticas (si fallan no se publica)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File Tests\Run-Tests.ps1
+
       - name: Compilar los ejecutables
         shell: powershell
         run: |

@@ -20,9 +20,7 @@ using System.IO.Compression;
 [assembly: AssemblyTitle("Eureka_Utils")]
 [assembly: AssemblyDescription("Utilidad portable para equipos Windows: software, bloatware, actualizaciones, hardware, cuentas, dominio, Intune y USB de instalación")]
 [assembly: AssemblyProduct("Eureka_Utils")]
-[assembly: AssemblyCopyright("Uso interno")]
-[assembly: AssemblyVersion("2.2.1.0")]
-[assembly: AssemblyFileVersion("2.2.1.0")]
+[assembly: AssemblyCopyright("Licencia MIT")]
 
 static class Program
 {

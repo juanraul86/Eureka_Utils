@@ -211,7 +211,7 @@ function Test-CfgGamingReadiness {
     & $add 'Disco del sistema GPT' $(if ($Fw.DiskStyle -eq 'GPT') { 'OK' } elseif ($Fw.DiskStyle) { 'FALLO' } else { 'AVISO' }) $(if ($Fw.DiskStyle -eq 'GPT') { 'GPT (necesario para UEFI)' } elseif ($Fw.DiskStyle) { "$($Fw.DiskStyle): convierte a GPT con MBR2GPT antes de pasar a UEFI" } else { 'No se pudo comprobar' })
     & $add 'Arranque seguro' $(if ($Fw.SecureBoot) { 'OK' } else { 'FALLO' }) $(if ($Fw.SecureBoot) { 'Activado' } else { 'Desactivado: actívalo en la BIOS (requiere UEFI)' })
     try {
-        $tpm = Get-CimInstance -Namespace 'root/cimv2/Security/MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop
+        $tpm = Get-CfgTpm
         if ($tpm) {
             $v = ($tpm.SpecVersion -split ',')[0].Trim()
             $ok = ([double]::Parse($v, [Globalization.CultureInfo]::InvariantCulture) -ge 2) -and $tpm.IsEnabled_InitialValue -and $tpm.IsActivated_InitialValue
@@ -220,7 +220,7 @@ function Test-CfgGamingReadiness {
         else { & $add 'TPM 2.0' 'FALLO' 'No hay TPM visible: activa Intel PTT o AMD fTPM en la BIOS' }
     }
     catch { & $add 'TPM 2.0' 'AVISO' 'Ejecuta como administrador para comprobarlo' }
-    $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $cpu = Get-CimInstance Win32_Processor -Property Name, Architecture, MaxClockSpeed, NumberOfCores, NumberOfLogicalProcessors, VirtualizationFirmwareEnabled | Select-Object -First 1
     $hyper = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent
     & $add 'Virtualización (VT-x/AMD-V)' $(if ($cpu.VirtualizationFirmwareEnabled -or $hyper) { 'OK' } else { 'AVISO' }) $(if ($hyper) { 'Activa (hay un hipervisor en marcha)' } elseif ($cpu.VirtualizationFirmwareEnabled) { 'Activada en la BIOS' } else { 'Desactivada: algunos antitrampas y Windows Sandbox/WSL la necesitan' })
     try {

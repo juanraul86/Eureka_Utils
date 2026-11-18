@@ -287,6 +287,19 @@
       <TextBlock x:Name="PostBannerText" Foreground="#92400E" TextWrapping="Wrap" FontWeight="SemiBold"/>
     </Border>
 
+    <!-- Aviso de versión nueva de Eureka_Utils -->
+    <Border x:Name="UpdateBanner" DockPanel.Dock="Top" Background="{DynamicResource Selection}" BorderBrush="{DynamicResource Accent}" BorderThickness="0,0,0,1" Padding="22,8" Visibility="Collapsed">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="UpdateBannerText" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,12,0"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="BtnUpdDownload" Content="Descargar y verificar" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"/>
+          <Button x:Name="BtnUpdNotes" Content="Ver novedades" Margin="0,0,8,0"/>
+          <Button x:Name="BtnUpdSkip" Content="Omitir esta versión" Margin="0"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- Barra de estado -->
     <Border DockPanel.Dock="Bottom" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="18,8">
       <Grid>
@@ -327,6 +340,8 @@
                   <Button x:Name="BtnRestorePoint" Content="Crear punto de restauración"/>
                   <Button x:Name="BtnReport" Content="Exportar informe del equipo (HTML)"/>
                   <Button x:Name="BtnOpenExports" Content="Abrir carpeta de exportaciones"/>
+                  <Button x:Name="BtnSelfUpdate" Content="Buscar nueva versión de Eureka_Utils"/>
+                  <CheckBox x:Name="ChkAutoUpdate" Content="Comprobar al abrir" VerticalAlignment="Center" Margin="0,0,0,8" ToolTip="Consulta de forma anónima la última versión publicada en GitHub (no envía datos del equipo)"/>
                 </WrapPanel>
               </GroupBox>
             </StackPanel>

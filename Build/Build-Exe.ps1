@@ -107,9 +107,15 @@ $manifest = Join-Path $obj 'manifest.txt'
 $lines = foreach ($f in $codeFiles) { '{0} {1}' -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash, $f.FullName.Substring($root.Length + 1).Replace('\', '/') }
 [IO.File]::WriteAllLines($manifest, [string[]]$lines, (New-Object Text.UTF8Encoding $false))
 Write-Host ("Lista de integridad: {0} archivos de código" -f @($lines).Count)
-& $csc @common "/resource:$manifest,manifest.txt" "/out:$(Join-Path $root 'Eureka_Utils.exe')" (Join-Path $build 'Launcher.cs')
+# Versión de los ejecutables: la de Modules\Core.psm1 ($script:CfgVersion)
+$cfgVersion = [regex]::Match((Get-Content (Join-Path $root 'Modules\Core.psm1') -Raw), "\`$script:CfgVersion\s*=\s*'([0-9.]+)'").Groups[1].Value
+if (-not $cfgVersion) { throw 'No se encuentra $script:CfgVersion en Modules\Core.psm1.' }
+$versionCs = Join-Path $obj 'Version.cs'
+Set-Content -Path $versionCs -Encoding UTF8 -Value ('using System.Reflection; [assembly: AssemblyVersion("{0}.0")] [assembly: AssemblyFileVersion("{0}.0")]' -f $cfgVersion)
+Write-Host "Versión: $cfgVersion"
+& $csc @common "/resource:$manifest,manifest.txt" "/out:$(Join-Path $root 'Eureka_Utils.exe')" (Join-Path $build 'Launcher.cs') $versionCs
 if ($LASTEXITCODE) { throw "Error compilando Eureka_Utils.exe ($LASTEXITCODE)" }
-& $csc @common '/define:SINGLEFILE' "/r:$fx\System.IO.Compression.dll" "/r:$fx\System.IO.Compression.FileSystem.dll" "/resource:$payload,payload.zip" "/out:$(Join-Path $dist 'Eureka_Utils_Portable.exe')" (Join-Path $build 'Launcher.cs')
+& $csc @common '/define:SINGLEFILE' "/r:$fx\System.IO.Compression.dll" "/r:$fx\System.IO.Compression.FileSystem.dll" "/resource:$payload,payload.zip" "/out:$(Join-Path $dist 'Eureka_Utils_Portable.exe')" (Join-Path $build 'Launcher.cs') $versionCs
 if ($LASTEXITCODE) { throw "Error compilando Eureka_Utils_Portable.exe ($LASTEXITCODE)" }
 
 # ---------------------------------------------------------------- firma (opcional)

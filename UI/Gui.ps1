@@ -10,7 +10,7 @@ $script:TaskButtons = @(
     'BtnMdmDiag', 'BtnAutopilot', 'BtnBattery', 'BtnUsbReadIso', 'BtnUsbCreate', 'BtnUsbSaveXml',
     'BtnDiagRun', 'BtnSfc', 'BtnDismScan', 'BtnDismRestore', 'BtnChkdsk', 'BtnEnergy', 'BtnDiagEvents',
     'BtnSecRun', 'BtnSigUpdate', 'BtnScanQuick', 'BtnScanFull', 'BtnScanFolder', 'BtnScanOffline', 'BtnMsert',
-    'BtnMemRefresh', 'BtnDrvList', 'BtnDrvScan', 'BtnDrvInstall', 'BtnDrvFolder', 'BtnDrvBackup', 'BtnFwCheck', 'BtnFwPrepare', 'BtnMbrValidate', 'BtnMbrConvert', 'BtnClearData'
+    'BtnMemRefresh', 'BtnDrvList', 'BtnDrvScan', 'BtnDrvInstall', 'BtnDrvFolder', 'BtnDrvBackup', 'BtnFwCheck', 'BtnFwPrepare', 'BtnMbrValidate', 'BtnMbrConvert', 'BtnClearData', 'BtnUpdDownload'
 )
 
 $script:Palettes = @{
@@ -44,7 +44,12 @@ function Get-CfgPrefs {
 
 function Save-CfgPrefs {
     param($Prefs)
-    try { $Prefs | ConvertTo-Json | Set-Content (Get-CfgPrefsPath) -Encoding UTF8 } catch { }
+    try {
+        $cur = Get-CfgPrefs
+        foreach ($p in $Prefs.PSObject.Properties) { $cur | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value -Force }
+        $cur | ConvertTo-Json | Set-Content (Get-CfgPrefsPath) -Encoding UTF8
+    }
+    catch { }
 }
 
 function Test-CfgSystemDark {
@@ -160,6 +165,7 @@ function Start-CfgTask {
 }
 
 function Invoke-CfgTimerTick {
+    if ($script:G.RelCheck) { Complete-CfgReleaseCheck }
     $line = $null
     $sb = New-Object System.Text.StringBuilder
     $last = $null
@@ -801,6 +807,42 @@ function Set-CfgFirmwareView {
     $u.BtnMbrConvert.IsEnabled = ($fw.DiskStyle -eq 'MBR')
 }
 
+# ------------------------------------------------------------------ versión nueva de Eureka_Utils
+
+function Start-CfgReleaseCheck {
+    <# Comprueba en segundo plano (runspace propio, no bloquea otras tareas) si hay una release nueva. #>
+    param([switch]$Manual)
+    if ($script:G.RelCheck) { return }
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $iss.ExecutionPolicy = [Microsoft.PowerShell.ExecutionPolicy]::Bypass
+    $iss.ImportPSModule([string[]]@(@('Core', 'Updates') | ForEach-Object { Join-Path $script:G.Root "Modules\$_.psm1" }))
+    $rs = [runspacefactory]::CreateRunspace($iss); $rs.Open()
+    $ps = [powershell]::Create(); $ps.Runspace = $rs
+    [void]$ps.AddScript('param($r, $l, $q) Set-CfgEnvironment -Root $r -LogFile $l -LogQueue $q | Out-Null; Get-CfgLatestRelease')
+    [void]$ps.AddArgument($script:G.Root).AddArgument($script:G.LogFile).AddArgument($script:G.Queue)
+    $script:G.RelCheck = @{ PS = $ps; RS = $rs; Handle = $ps.BeginInvoke(); Manual = [bool]$Manual }
+}
+
+function Complete-CfgReleaseCheck {
+    $job = $script:G.RelCheck
+    if (-not $job -or -not $job.Handle.IsCompleted) { return }
+    $script:G.RelCheck = $null
+    $rel = $null
+    try { $rel = @($job.PS.EndInvoke($job.Handle)) | Where-Object { $_ -and $_.PSObject.Properties['IsNewer'] } | Select-Object -First 1 } catch { }
+    $job.PS.Dispose(); $job.RS.Close(); $job.RS.Dispose()
+    if (-not $rel) { if ($job.Manual) { Show-CfgMessage 'No se pudo comprobar si hay una versión nueva (sin conexión con GitHub). Inténtalo más tarde.' 'Warning' | Out-Null }; return }
+    $script:G.Release = $rel
+    $prefs = Get-CfgPrefs
+    $skipped = ($prefs.PSObject.Properties['SkipVersion'] -and $prefs.SkipVersion -eq "$($rel.Version)")
+    if ($rel.IsNewer -and ($job.Manual -or -not $skipped)) {
+        $script:Ui.UpdateBannerText.Text = (T 'Hay una versión nueva de Eureka_Utils: {0} (tienes la {1}).') -f $rel.Version, (Get-CfgVersion)
+        $script:Ui.UpdateBanner.Visibility = 'Visible'
+        $script:Ui.BtnUpdDownload.IsEnabled = [bool]$rel.AssetUrl
+        Write-CfgLog "Versión nueva de Eureka_Utils disponible: $($rel.Version) ($($rel.Url))."
+    }
+    elseif ($job.Manual) { Show-CfgMessage ((T 'Tienes la última versión de Eureka_Utils ({0}).') -f (Get-CfgVersion)) | Out-Null }
+}
+
 # ------------------------------------------------------------------ idioma
 
 function Set-CfgLanguage {
@@ -847,7 +889,8 @@ function Save-CfgCaptures {
     # Anonimiza nombre de equipo y usuario en las capturas para la documentación
     $anon = { param($t) ([string]$t).Replace($env:COMPUTERNAME, 'PC-EJEMPLO').Replace($env:USERNAME, 'usuario') }
     $script:Ui.HeaderSubtitle.Text = & $anon $script:Ui.HeaderSubtitle.Text
-    $script:Ui.SysInfoList.ItemsSource = @($script:Ui.SysInfoList.ItemsSource | ForEach-Object { [pscustomobject]@{ Key = $_.Key; Value = (& $anon $_.Value) } })
+    $serialKey = T 'Número de serie'
+    $script:Ui.SysInfoList.ItemsSource = @($script:Ui.SysInfoList.ItemsSource | ForEach-Object { [pscustomobject]@{ Key = $_.Key; Value = $(if ($_.Key -eq $serialKey -and $_.Value -ne '—') { 'XXXXXXXX' } else { & $anon $_.Value }) } })
     $script:Ui.AccLocalGrid.ItemsSource = @($script:Ui.AccLocalGrid.ItemsSource | ForEach-Object {
             [pscustomobject]@{ Name = (& $anon $_.Name); FullName = $(if ($_.FullName) { 'Usuario de ejemplo' } else { '' }); EnabledText = $_.EnabledText; AdminText = $_.AdminText; LastLogon = $_.LastLogon }
         })
@@ -932,6 +975,7 @@ function Show-CfgGui {
     $ui = @{ Window = $window }
     foreach ($m in [regex]::Matches($xamlText, 'x:Name="([^"]+)"')) { $ui[$m.Groups[1].Value] = $window.FindName($m.Groups[1].Value) }
     $script:Ui = $ui
+    $window.Title = "Eureka_Utils $(Get-CfgVersion)"
     $iconPath = Join-Path $Root 'UI\eureka_utils.ico'
     if (Test-Path $iconPath) { try { $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create((New-Object Uri $iconPath)) } catch { } }
     if ($CapturePath) { $window.WindowStartupLocation = 'Manual'; $window.Left = -5000; $window.Top = 0; $window.ShowInTaskbar = $false }
@@ -1377,6 +1421,32 @@ function Show-CfgGui {
             Restart-CfgToFirmware
         })
 
+    # ---------------- Versión nueva de Eureka_Utils
+    $ui.BtnSelfUpdate.Add_Click({ Start-CfgReleaseCheck -Manual })
+    $autoPref = Get-CfgPrefs
+    $ui.ChkAutoUpdate.IsChecked = -not ($autoPref.PSObject.Properties['CheckUpdates'] -and $autoPref.CheckUpdates -eq $false)
+    $ui.ChkAutoUpdate.Add_Click({ if (-not $script:G.CapturePath) { Save-CfgPrefs ([pscustomobject]@{ CheckUpdates = [bool]$script:Ui.ChkAutoUpdate.IsChecked }) } })
+    $ui.BtnUpdNotes.Add_Click({ $r = $script:G.Release; if ($r -and $r.Url -match '^https://github\.com/juanraul86/Eureka_Utils/') { Start-Process $r.Url } })
+    $ui.BtnUpdSkip.Add_Click({
+            $r = $script:G.Release
+            if ($r) { Save-CfgPrefs ([pscustomobject]@{ SkipVersion = "$($r.Version)" }) }
+            $script:Ui.UpdateBanner.Visibility = 'Collapsed'
+        })
+    $ui.BtnUpdDownload.Add_Click({
+            $r = $script:G.Release
+            if (-not $r) { return }
+            Start-CfgTask -Title ((T 'Descargando Eureka_Utils {0}') -f $r.Version) -Arguments @($r) -Script { param($R) Save-CfgLatestRelease -Release $R } -OnComplete {
+                param($out)
+                $res = @($out | Where-Object { $_.Id -eq 'selfupdate' }) | Select-Object -First 1
+                if ($res -and $res.Success) {
+                    $script:Ui.UpdateBannerText.Text = (T 'Descargada y verificada: {0}. Cierra esta versión y abre la nueva.') -f $res.Message
+                    $script:Ui.BtnUpdDownload.IsEnabled = $false
+                    Start-Process (Get-CfgSystemExe 'explorer.exe') "/select,`"$($res.Message)`""
+                }
+                else { Show-CfgMessage 'No se ha podido descargar o verificar la nueva versión. Revisa la pestaña Registro o descárgala desde la página de novedades.' 'Warning' | Out-Null }
+            }
+        })
+
     # ---------------- Registro
     $ui.BtnClearData.Add_Click({
             if (-not (Confirm-CfgAction 'Se borrarán los registros anteriores y todo lo exportado (informes HTML, listas de hardware, hash de Autopilot, diagnósticos MDM y copias de controladores). Contienen el nombre del equipo, usuarios y software instalado. No se puede deshacer. ¿Borrar?')) { return }
@@ -1401,7 +1471,7 @@ function Show-CfgGui {
     $window.Add_ContentRendered({
             if ($script:G.CapturePath) { Start-CfgDetection -Then { Start-CfgUpdateScan -Then { Save-CfgCaptures } } }
             elseif ($script:G.PostInstall) { Start-CfgDetection -Then { Start-CfgPostInstall } }
-            else { Start-CfgDetection -Then { Start-CfgUpdateScan } }
+            else { Start-CfgDetection -Then { Start-CfgUpdateScan }; if ($script:Ui.ChkAutoUpdate.IsChecked) { Start-CfgReleaseCheck } }
             if (@($script:G.FolderRisk).Count -and -not $script:G.CapturePath) {
                 $msg = (T "Por seguridad: la carpeta de Eureka_Utils la pueden modificar usuarios sin permisos de administrador ({0}). Alguien podría cambiar sus scripts para que se ejecuten como administrador.`n`n¿Proteger la carpeta ahora (solo administradores y SYSTEM podrán modificarla)?") -f ($script:G.FolderRisk -join ', ')
                 if ((Show-CfgMessage -Text $msg -Icon 'Warning' -Buttons 'YesNo') -eq 'Yes') {

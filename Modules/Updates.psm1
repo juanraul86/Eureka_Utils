@@ -142,4 +142,81 @@ function Update-CfgWingetSources {
     return (New-CfgResult -Id 'sources' -Name 'Orígenes winget' -Action 'Actualizar' -Success ($code -eq 0) -Message "Código $code")
 }
 
+# ---------------------------------------------------------------- actualización de Eureka_Utils
+
+$script:ReleaseApi = 'https://api.github.com/repos/juanraul86/Eureka_Utils/releases/latest'
+
+function Get-CfgLatestRelease {
+    <# Consulta la última release publicada en GitHub. Solo envía una petición anónima a la API
+       pública (sin datos del equipo). Devuelve $null si no hay conexión. #>
+    param([int]$TimeoutSec = 8)
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-RestMethod -Uri $script:ReleaseApi -TimeoutSec $TimeoutSec -UseBasicParsing -Headers @{ 'User-Agent' = "Eureka_Utils/$(Get-CfgVersion)"; Accept = 'application/vnd.github+json' }
+    }
+    catch { Write-CfgLog "No se pudo comprobar si hay una versión nueva: $($_.Exception.Message)" WARN; return $null }
+    $ver = $null
+    if (-not [version]::TryParse(($r.tag_name -replace '^v', ''), [ref]$ver)) { return $null }
+    $asset = @($r.assets | Where-Object { $_.name -eq 'Eureka_Utils_Portable.exe' }) | Select-Object -First 1
+    $sha = $null
+    if ($asset -and $asset.PSObject.Properties['digest'] -and "$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $matches[1].ToUpper() }
+    # Huella publicada en las notas de la release (la tabla que genera el flujo de publicación)
+    $notesSha = [regex]::Match("$($r.body)", 'Eureka_Utils_Portable\.exe`?\s*\|\s*`?([0-9A-Fa-f]{64})').Groups[1].Value.ToUpper()
+    [pscustomobject]@{
+        Version     = $ver
+        Tag         = $r.tag_name
+        Name        = $r.name
+        Url         = $r.html_url
+        Published   = $r.published_at
+        IsNewer     = ($ver -gt [version](Get-CfgVersion))
+        AssetUrl    = $(if ($asset) { $asset.browser_download_url } else { $null })
+        AssetSizeMB = $(if ($asset) { [math]::Round($asset.size / 1MB, 1) } else { 0 })
+        Sha256      = $sha
+        NotesSha256 = $(if ($notesSha) { $notesSha } else { $null })
+    }
+}
+
+function Save-CfgLatestRelease {
+    <# Descarga Eureka_Utils_Portable.exe de la release y comprueba su SHA-256 con el que publica
+       GitHub. Si no coincide, lo borra. No sustituye ni ejecuta nada. #>
+    param([Parameter(Mandatory)]$Release, [string]$Folder = (Join-Path $env:USERPROFILE 'Downloads'))
+    if (-not $Release.AssetUrl -or $Release.AssetUrl -notmatch '^https://github\.com/juanraul86/Eureka_Utils/releases/download/') {
+        Write-CfgLog 'La release no tiene un ejecutable descargable de GitHub.' ERROR
+        return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $false -Message 'Sin ejecutable')
+    }
+    $expected = $Release.Sha256
+    if (-not $expected) { $expected = $Release.NotesSha256 }
+    if (-not $expected) {
+        Write-CfgLog 'GitHub no publica la huella SHA-256 de este ejecutable: por seguridad no se descarga. Descárgalo a mano desde la página de la release.' ERROR
+        return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $false -Message 'Sin huella')
+    }
+    if ($Release.Sha256 -and $Release.NotesSha256 -and $Release.Sha256 -ne $Release.NotesSha256) {
+        Write-CfgLog 'La huella del ejecutable no coincide con la de las notas de la release: no se descarga.' ERROR
+        return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $false -Message 'Huellas distintas')
+    }
+    if (-not (Test-Path $Folder)) { New-Item -ItemType Directory -Path $Folder -Force | Out-Null }
+    $dest = Join-Path $Folder ('Eureka_Utils_Portable_{0}.exe' -f $Release.Version)
+    $tmp = "$dest.part"
+    Write-CfgLog "Descargando Eureka_Utils $($Release.Version) ($($Release.AssetSizeMB) MB)..." STEP
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $Release.AssetUrl -OutFile $tmp -UseBasicParsing -TimeoutSec 120 -Headers @{ 'User-Agent' = "Eureka_Utils/$(Get-CfgVersion)" }
+        $hash = (Get-FileHash $tmp -Algorithm SHA256).Hash
+        if ($hash -ne $expected) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+            Write-CfgLog "La huella SHA-256 del archivo descargado ($hash) no coincide con la publicada ($expected): se ha borrado." ERROR
+            return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $false -Message 'Huella incorrecta')
+        }
+        Move-Item $tmp $dest -Force
+        $sig = (Get-AuthenticodeSignature $dest).Status
+        Write-CfgLog ("Eureka_Utils {0} descargado y verificado (SHA-256 {1}) en {2}. Firma digital: {3}. Cierra esta versión y abre la nueva." -f $Release.Version, $hash, $dest, $(if ($sig -eq 'Valid') { 'válida' } else { 'sin firmar' })) OK
+        return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $true -Message $dest)
+    }
+    catch {
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        Write-CfgLog "No se pudo descargar la nueva versión: $($_.Exception.Message)" ERROR
+        return (New-CfgResult -Id 'selfupdate' -Name 'Eureka_Utils' -Action 'Descargar' -Success $false -Message $_.Exception.Message)
+    }
+}
+
 Export-ModuleMember -Function *

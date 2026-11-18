@@ -74,6 +74,10 @@ function Get-CfgJson {
     return (Get-Content -Path $path -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
+# Versión de Eureka_Utils: fuente única (Build-Exe la usa para los ejecutables)
+$script:CfgVersion = '2.3.0'
+function Get-CfgVersion { return $script:CfgVersion }
+
 function Get-CfgDataRoot { if ($script:CfgData) { return $script:CfgData } return $script:CfgRoot }
 
 function Get-CfgExportFolder {
@@ -281,15 +285,27 @@ function Invoke-CfgWinget {
 
 # ---------------------------------------------------------------- Sistema
 
+function Get-CfgTpm {
+    <# Win32_Tpm una sola vez por proceso. Sin permisos de administrador Windows tarda unos 5 s en
+       denegar el acceso, así que ni se intenta: se lanza el error directamente (los llamadores ya
+       lo tratan como "ejecuta como administrador para comprobarlo"). #>
+    if (-not (Test-CfgAdmin)) { throw 'Acceso denegado: el TPM solo se puede consultar como administrador.' }
+    if (-not $script:TpmQueried) {
+        $script:TpmCache = Get-CimInstance -Namespace 'root/cimv2/Security/MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop
+        $script:TpmQueried = $true
+    }
+    return $script:TpmCache
+}
+
 function Get-CfgSystemSummary {
     $os   = Get-CimInstance Win32_OperatingSystem
     $cs   = Get-CimInstance Win32_ComputerSystem
-    $cpu  = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $cpu  = Get-CimInstance Win32_Processor -Property Name, Architecture, MaxClockSpeed, NumberOfCores, NumberOfLogicalProcessors, VirtualizationFirmwareEnabled | Select-Object -First 1
     $bios = Get-CimInstance Win32_BIOS
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($env:SystemDrive)'"
     $ver  = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $tpm  = $null
-    try { $tpm = Get-CimInstance -Namespace 'root/cimv2/Security/MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop } catch { }
+    try { $tpm = Get-CfgTpm } catch { }
     $wg = Get-CfgWingetPath
     $wgVer = 'No disponible'
     if ($wg) { try { $wgVer = (& $wg --version 2>$null | Select-Object -First 1) } catch { } }
@@ -303,7 +319,7 @@ function Get-CfgSystemSummary {
     $display = [ordered]@{
         'Equipo'              = $env:COMPUTERNAME
         'Fabricante / modelo' = ('{0} {1}' -f $cs.Manufacturer, $cs.Model).Trim()
-        'Número de serie'     = $bios.SerialNumber
+        'Número de serie'     = $(if ("$($bios.SerialNumber)".Trim() -match '^\s*$|Default string|To be filled|System Serial Number|O\.E\.M|Not Applicable|^0+$') { '—' } else { $bios.SerialNumber })
         'Sistema operativo'   = $os.Caption
         'Versión'             = ('{0} (compilación {1}.{2})' -f $ver.DisplayVersion, $ver.CurrentBuild, $ver.UBR)
         'Procesador'          = ('{0} · {1} núcleos / {2} hilos' -f $cpu.Name.Trim(), $cpu.NumberOfCores, $cpu.NumberOfLogicalProcessors)

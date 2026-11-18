@@ -43,7 +43,7 @@ function Get-CfgHardware {
     $cs    = Get-CimInstance Win32_ComputerSystem
     $bios  = Get-CimInstance Win32_BIOS
     $board = Get-CimInstance Win32_BaseBoard
-    $cpu   = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $cpu   = Get-CimInstance Win32_Processor -Property Name, Architecture, MaxClockSpeed, NumberOfCores, NumberOfLogicalProcessors, VirtualizationFirmwareEnabled | Select-Object -First 1
     $enc   = Get-CimInstance Win32_SystemEnclosure | Select-Object -First 1
     $bat   = @(Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue)
 
@@ -241,7 +241,7 @@ function Test-CfgWin11Compat {
     else { & $add 'Firmware UEFI' 'FALLO' 'Arranque en modo BIOS heredado (Legacy/CSM). Windows 11 requiere UEFI con disco GPT.' }
 
     try {
-        $tpm = Get-CimInstance -Namespace 'root/cimv2/Security/MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop
+        $tpm = Get-CfgTpm
         if ($tpm) {
             $v = ($tpm.SpecVersion -split ',')[0].Trim()
             & $add 'TPM' $(if ([double]::Parse($v, [Globalization.CultureInfo]::InvariantCulture) -ge 2) { 'OK' } else { 'FALLO' }) "Versión $v$(if (-not $tpm.IsEnabled_InitialValue) { ' (deshabilitado)' })"
@@ -327,30 +327,47 @@ function Get-CfgMemoryUsage {
     $byItem = @{}
     if ($Catalog) {
         if (-not $Programs) { $Programs = @(Get-CfgInstalledPrograms) }
+        # Bucles directos (sin tuberías): con ~110 aplicaciones y ~300 procesos las tuberías tardaban segundos
+        $running = @(foreach ($pr in $procs) { if ($pr.Path -or $pr.Product) { $pr } })
+        $generic = '^[A-Za-z]:\\(Windows|Program Files( \(x86\))?|ProgramData|Users)?\\$'
         foreach ($item in $Catalog) {
             $d = $item.detect
             if (-not $d) { continue }
             $dirs = New-Object System.Collections.Generic.List[string]
-            $likes = New-Object System.Collections.Generic.List[string]
+            $wild = New-Object System.Collections.Generic.List[string]
+            $likes = @()
             if ($d.PSObject.Properties['displayName']) {
-                foreach ($pat in @($d.displayName)) {
-                    $likes.Add($pat)
-                    foreach ($m in @($Programs | Where-Object { $_.DisplayName -like $pat })) {
-                        if ($m.InstallLocation -and $m.InstallLocation.Trim('"').Length -gt 3) { $dirs.Add($m.InstallLocation.Trim('"').TrimEnd('\') + '\') }
-                        elseif ($m.DisplayIcon) { $ic = ($m.DisplayIcon -split ',')[0].Trim('"'); if ($ic -match '\\') { $dirs.Add((Split-Path $ic) + '\') } }
+                $likes = @($d.displayName)
+                foreach ($pat in $likes) {
+                    foreach ($m in $Programs) {
+                        if ($m.DisplayName -notlike $pat) { continue }
+                        $dir = $null
+                        if ($m.InstallLocation -and $m.InstallLocation.Trim('"').Length -gt 3) { $dir = $m.InstallLocation.Trim('"').TrimEnd('\') + '\' }
+                        elseif ($m.DisplayIcon) { $ic = ($m.DisplayIcon -split ',')[0].Trim('"'); if ($ic -match '\\') { $dir = (Split-Path $ic) + '\' } }
+                        if ($dir -and $dir -notmatch $generic -and -not $dirs.Contains($dir)) { $dirs.Add($dir) }
                     }
                 }
             }
-            if ($d.PSObject.Properties['appx']) { foreach ($pat in @($d.appx)) { $dirs.Add("*\WindowsApps\$($pat)_*") } }
-            if ($d.PSObject.Properties['path']) { foreach ($pat in @($d.path)) { $x = [Environment]::ExpandEnvironmentVariables($pat); $dirs.Add($(if ($x -match '\.exe$') { Split-Path $x } else { $x }).TrimEnd('\') + '\') } }
-            # Directorios genéricos (Windows, Program Files...) darían falsos positivos
-            $dirs = @($dirs | Where-Object { $_ -and $_ -notmatch '^[A-Za-z]:\\(Windows|Program Files( \(x86\))?|ProgramData|Users)?\\$' } | Select-Object -Unique)
-            $match = @($procs | Where-Object {
-                    $pr = $_
-                    ($pr.Path -and @($dirs | Where-Object { if ($_ -like '*`**') { $pr.Path -like "$_*" } else { $pr.Path.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) } }).Count) -or
-                    ($pr.Product -and @($likes | Where-Object { $pr.Product -like $_ }).Count)
-                })
-            if ($match.Count) { $byItem[$item.id] = [pscustomobject]@{ MB = [math]::Round(($match | Measure-Object MB -Sum).Sum); Procesos = $match.Count } }
+            if ($d.PSObject.Properties['appx']) { foreach ($pat in @($d.appx)) { $wild.Add("*\WindowsApps\$($pat)_*") } }
+            if ($d.PSObject.Properties['path']) {
+                foreach ($pat in @($d.path)) {
+                    $x = [Environment]::ExpandEnvironmentVariables($pat)
+                    $dir = $(if ($x -match '\.exe$') { Split-Path $x } else { $x }).TrimEnd('\') + '\'
+                    if ($dir -notmatch $generic -and -not $dirs.Contains($dir)) { $dirs.Add($dir) }
+                }
+            }
+            if (-not $dirs.Count -and -not $wild.Count -and -not $likes.Count) { continue }
+            $mb = 0.0; $n = 0
+            foreach ($pr in $running) {
+                $hit = $false
+                if ($pr.Path) {
+                    foreach ($dir in $dirs) { if ($pr.Path.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase)) { $hit = $true; break } }
+                    if (-not $hit) { foreach ($w in $wild) { if ($pr.Path -like "$w*") { $hit = $true; break } } }
+                }
+                if (-not $hit -and $pr.Product) { foreach ($pat in $likes) { if ($pr.Product -like $pat) { $hit = $true; break } } }
+                if ($hit) { $mb += $pr.MB; $n++ }
+            }
+            if ($n) { $byItem[$item.id] = [pscustomobject]@{ MB = [math]::Round($mb); Procesos = $n } }
         }
     }
     [pscustomobject]@{ TotalMB = $totalMB; FreeMB = $freeMB; UsedMB = $totalMB - $freeMB; Top = $top; ByItem = $byItem; At = (Get-Date -Format 'HH:mm') }
