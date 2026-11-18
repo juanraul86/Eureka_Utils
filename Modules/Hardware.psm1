@@ -142,6 +142,76 @@ function Get-CfgHardwareDisplay {
     }
 }
 
+function Get-CfgDeviceIdentity {
+    <# Identificación del equipo según el fabricante: nombre comercial, tipo/modelo (Lenovo MT/MTM),
+       número de producto o SKU (HP Product Number), número de serie (Dell Service Tag + Express
+       Service Code), UUID y página de garantía. En PC montados los campos genéricos se ocultan. #>
+    $cs = Get-CimInstance Win32_ComputerSystem
+    $csp = Get-CimInstance Win32_ComputerSystemProduct
+    $bios = Get-CimInstance Win32_BIOS
+    $board = Get-CimInstance Win32_BaseBoard
+    $junk = '^\s*$|Default string|To be filled|System (Product Name|Serial Number|manufacturer|Version)|O\.E\.M|Not Applicable|Not Specified|^None$|INVALID|^0+$|^1234567|^x+$|Type1|SKU$|^Base Board'
+    $clean = { param($v) $t = "$v".Trim(); if ($t -match $junk) { $null } else { $t } }
+    $mfr = & $clean $cs.Manufacturer
+    $vendor = switch -Regex ("$mfr") { 'Lenovo' { 'Lenovo' } 'Dell' { 'Dell' } 'HP|Hewlett' { 'HP' } 'Microsoft' { 'Microsoft' } 'ASUS' { 'ASUS' } 'Acer' { 'Acer' } default { $null } }
+    $model = & $clean $cs.Model
+    $family = & $clean $cs.SystemFamily
+    $sku = & $clean $cs.SystemSKUNumber
+    $serial = & $clean $bios.SerialNumber
+    if (-not $serial) { $serial = & $clean $csp.IdentifyingNumber }
+    $uuid = & $clean $csp.UUID
+    if ($uuid -match '^(F{8}-|0{8}-)') { $uuid = $null }
+    $d = [ordered]@{}
+    $d['Fabricante'] = $mfr
+    switch ($vendor) {
+        'Lenovo' {
+            # Lenovo: Win32_ComputerSystem.Model es el MTM (p. ej. 20XW00EXSP); el nombre comercial está en Version
+            $d['Nombre comercial'] = $(if (& $clean $csp.Version) { & $clean $csp.Version } else { $family })
+            if ($model -and $model.Length -ge 4) { $d['Machine Type (MT)'] = $model.Substring(0, 4) }
+            $d['Modelo (MTM)'] = $model
+            $d['Número de producto / SKU'] = $sku
+            $d['Número de serie'] = $serial
+        }
+        'Dell' {
+            $d['Nombre comercial'] = $model
+            $d['Número de producto / SKU'] = $sku
+            $d['Service Tag'] = $serial
+            if ($serial -match '^[0-9A-Za-z]{5,7}$') {
+                [bigint]$n = 0
+                foreach ($ch in $serial.ToUpper().ToCharArray()) { $n = $n * 36 + '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'.IndexOf($ch) }
+                $d['Express Service Code'] = $n.ToString()
+            }
+        }
+        'HP' {
+            $d['Nombre comercial'] = $model
+            $d['Número de producto'] = $sku
+            $d['Número de serie'] = $serial
+        }
+        default {
+            $d['Nombre comercial'] = $(if ($family -and $model -and $model -notlike "*$family*") { "$family $model" } elseif ($model) { $model } else { $family })
+            $d['Número de producto / SKU'] = $sku
+            $d['Número de serie'] = $serial
+        }
+    }
+    $d['UUID'] = $uuid
+    $brand = [bool]($vendor -or ($serial -and $model))
+    if (-not $brand) { $d['Placa base'] = ('{0} {1}' -f (& $clean $board.Manufacturer), (& $clean $board.Product)).Trim() }
+    foreach ($k in @($d.Keys)) { if (-not $d[$k]) { $d.Remove($k) } }
+    $warranty = @{
+        Lenovo = 'https://pcsupport.lenovo.com/warrantylookup'; Dell = 'https://www.dell.com/support/home'
+        HP = 'https://support.hp.com/checkwarranty'; Microsoft = 'https://mybusinessservice.surface.com'
+        ASUS = 'https://www.asus.com/support/warranty-status-inquiry/'; Acer = 'https://www.acer.com/support'
+    }
+    $key = if ($d.Contains('Service Tag')) { 'Service Tag' } else { 'Número de serie' }
+    [pscustomobject]@{
+        Vendor      = $vendor
+        IsBrand     = $brand
+        Display     = $d
+        Serial      = $serial
+        SerialLabel = $key
+        WarrantyUrl = $(if ($vendor) { $warranty[$vendor] } else { $null })
+    }
+}
 function Test-CfgWin11Compat {
     param($Hw)
     if (-not $Hw) { $Hw = Get-CfgHardware }

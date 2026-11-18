@@ -45,6 +45,7 @@ thead th{color:var(--muted);font-weight:600} table.kv th{width:220px;color:var(-
 <h1>Informe del equipo $(& $enc $env:COMPUTERNAME)</h1>
 <div class="muted">Generado el $(Get-Date -Format 'dd/MM/yyyy HH:mm') por el Eureka_Utils</div>
 <section><h2>Sistema</h2>$(& $kv $sys.Display)</section>
+<section><h2>Identificación del equipo</h2>$(& $kv (Get-CfgDeviceIdentity).Display)</section>
 <section><h2>Hardware</h2>$(& $kv (Get-CfgHardwareDisplay -Hw $hw))
 <h2>Tarjetas gráficas</h2>$(ConvertTo-CfgHtmlTable $gpus 'Name','Vendor','Vram','Driver','Date' 'Modelo','Fabricante','VRAM','Controlador','Fecha')
 <h2>Discos</h2>$(ConvertTo-CfgHtmlTable $disks 'Model','Media','Bus','Size','Health' 'Modelo','Tipo','Bus','Tamaño','Estado')</section>

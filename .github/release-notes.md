@@ -4,6 +4,9 @@
 - **Eureka_Utils_Portable.exe**: un solo archivo con todo dentro. Llévalo a cualquier equipo y ejecútalo (pide permisos de administrador).
 - **Eureka_Utils.exe**: lanzador para usar junto al código del repositorio (descarga el código con *Code > Download ZIP*).
 
+### Novedades de la 2.2.1
+- **Identificación del equipo** en la pestaña Hardware y en el informe: nombre comercial, número de serie, SKU y UUID; en Lenovo, Machine Type (MT) y modelo (MTM); en Dell, Service Tag y Express Service Code; en HP, número de producto. Botones para copiar los datos y abrir la garantía del fabricante.
+
 ### Novedades de la 2.2
 - **Consumo real de RAM**: la pestaña Software calcula la memoria con lo que ya está en ejecución más lo que vas a instalar, y la pestaña Hardware muestra qué programas usan más memoria.
 - Nueva pestaña **Drivers y BIOS**: todo el hardware con su controlador, controladores y firmware desde Windows Update, instalación desde carpeta, copia de seguridad de controladores y herramientas oficiales de Dell, HP, Lenovo e Intel.

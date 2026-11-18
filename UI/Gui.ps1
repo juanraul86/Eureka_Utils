@@ -207,6 +207,7 @@ $script:DetectScript = {
         Tw     = @(Get-CfgTweaks)
         Users  = @(Get-CfgLocalUsers)
         Mem    = Get-CfgMemoryUsage -Catalog $sw
+        Ident  = Get-CfgDeviceIdentity
     }
     $present = @($r.Bw | Where-Object { $_.Present }).Count
     $inst = @($r.Sw.Values | Where-Object { $_ }).Count
@@ -304,6 +305,24 @@ function Set-CfgDetectionResult {
     }
     if ($R.Users) { Set-CfgUserList $R.Users }
     if ($R.Mem) { Set-CfgMemoryView $R.Mem }
+    if ($R.Ident) { Set-CfgIdentityView $R.Ident }
+}
+
+function Set-CfgIdentityView {
+    param($Id)
+    if (-not $Id) { return }
+    $script:G.Ident = $Id
+    $disp = [ordered]@{}
+    foreach ($k in @($Id.Display.Keys)) {
+        $v = [string]$Id.Display[$k]
+        # Las capturas de la documentación no muestran números de serie reales
+        if ($script:G.CapturePath -and $k -in @('Número de serie', 'Service Tag', 'Express Service Code', 'UUID')) { $v = 'XXXXXXXX' }
+        $disp[$k] = $v
+    }
+    $script:Ui.HwIdList.ItemsSource = @(ConvertTo-CfgKeyValue $disp)
+    $script:Ui.HwIdNote.Text = $(if ($Id.IsBrand) { '' } else { T 'Equipo montado por piezas: el fabricante no ha grabado modelo ni número de serie del equipo. Para soporte y garantía usa el modelo de la placa base y el número de serie de cada componente.' })
+    $script:Ui.HwIdNote.Visibility = $(if ($Id.IsBrand) { 'Collapsed' } else { 'Visible' })
+    $script:Ui.BtnHwWarranty.IsEnabled = [bool]$Id.WarrantyUrl
 }
 
 function Set-CfgMemoryView {
@@ -1258,6 +1277,21 @@ function Show-CfgGui {
         })
     $ui.BtnMsert.Add_Click({ Start-CfgTask -Title 'Microsoft Safety Scanner' -Script { Get-CfgSafetyScanner -Run } })
     Initialize-CfgDiagTab
+
+    # ---------------- Hardware: identificación
+    $ui.BtnHwCopyId.Add_Click({
+            $id = $script:G.Ident
+            if (-not $id) { return }
+            $txt = (@($id.Display.Keys | ForEach-Object { '{0}: {1}' -f (T $_), $id.Display[$_] }) + @('{0}: {1}' -f (T 'Equipo'), $env:COMPUTERNAME)) -join "`r`n"
+            try { [System.Windows.Clipboard]::SetText($txt); $script:Ui.StatusText.Text = T 'Datos del equipo copiados al portapapeles.' } catch { }
+        })
+    $ui.BtnHwWarranty.Add_Click({
+            $id = $script:G.Ident
+            if (-not $id -or -not $id.WarrantyUrl) { return }
+            if ($id.Serial) { try { [System.Windows.Clipboard]::SetText($id.Serial) } catch { } }
+            Write-CfgLog ("{0} copiado al portapapeles: pégalo en la página de garantía de {1} ({2})." -f $id.SerialLabel, $id.Vendor, $id.WarrantyUrl)
+            Start-Process $id.WarrantyUrl
+        })
 
     # ---------------- Hardware: memoria
     $ui.BtnMemRefresh.Add_Click({
