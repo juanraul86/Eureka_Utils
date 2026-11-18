@@ -1,0 +1,78 @@
+{
+  "version": "2.0",
+  "notes": "software admite el comodín @gpu (controladores según la gráfica detectada). bloatware admite @recommended. tweaks: ids de la pestaña Ajustes.",
+  "profiles": [
+    {
+      "name": "Personal / Hogar",
+      "description": "Equipo doméstico: quita publicidad y apps promocionadas (conserva Xbox), instala utilidades ligeras y los controladores de la gráfica.",
+      "software": ["@gpu", "7zip", "vlc", "firefox", "sumatra", "notepadpp", "bitwarden"],
+      "bloatware": ["@recommended"], "keepBloatware": ["xbox-app", "xbox-overlay", "xbox-speech"],
+      "tweaks": ["file-ext", "no-ads", "no-web-search", "restore-on", "smartscreen-pua"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Oficina (Microsoft 365)",
+      "description": "Puesto de oficina corporativo: Microsoft 365, Teams, OneDrive, Portal de empresa, PDF y utilidades. Limpia apps de consumo, aplica directivas y sincroniza con Intune si está inscrito.",
+      "software": ["m365", "teams", "onedrive", "companyportal", "7zip", "acrobat", "pdf24", "notepadpp", "greenshot", "chrome"],
+      "bloatware": ["@recommended"], "keepBloatware": [],
+      "tweaks": ["power-balanced", "file-ext", "no-ads", "no-web-search", "telemetry-min", "restore-on", "smartscreen-pua"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": true, "intuneSync": true, "upgradeAll": true
+    },
+    {
+      "name": "Oficina IT (sistemas, soporte y ciberseguridad)",
+      "description": "Puesto del departamento de IT: administración de sistemas (RSAT, PowerShell 7, RDP, SSH, Sysinternals), soporte a usuarios (Asistencia rápida, captura, BGInfo) y ciberseguridad (Wireshark, Nmap, Sandbox, Autoruns, System Informer, cifrado, gestor de contraseñas). Además de Microsoft 365.",
+      "software": ["m365", "teams", "companyportal", "pwsh", "terminal", "rsat", "windowsapp", "rdcman", "mremoteng", "putty", "winscp", "ipscanner", "sysinternals", "rufus", "quickassist", "sharex", "bginfo", "wireshark", "nmap", "systeminformer", "autoruns", "procmon", "tcpview", "sigcheck", "adwcleaner", "sandbox", "keepassxc", "veracrypt", "vscode", "git", "7zip", "notepadpp", "everything", "treesize", "hwinfo", "crystaldiskinfo"],
+      "bloatware": ["@recommended"], "keepBloatware": [],
+      "tweaks": ["power-balanced", "file-ext", "hidden-files", "explorer-thispc", "fast-startup-off", "no-ads", "no-web-search", "telemetry-min", "restore-on", "smartscreen-pua", "rdp-on", "sudo-on"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": true, "intuneSync": true, "upgradeAll": true
+    },
+    {
+      "name": "Gaming",
+      "description": "Equipo de juegos: controladores de la gráfica detectada (NVIDIA/AMD), lanzadores principales, runtimes que piden los juegos, monitorización y ajustes de rendimiento. Conserva los componentes de Xbox.",
+      "software": ["@gpu", "vcredist", "vcredist-x86", "directx", "steam", "epic", "xbox", "discord", "afterburner", "hwinfo", "7zip", "firefox"],
+      "bloatware": ["@recommended"], "keepBloatware": ["xbox-app", "xbox-overlay", "xbox-speech", "xbox-tcui", "xbox-identity"],
+      "tweaks": ["power-high", "game-mode", "hags", "gamedvr-off", "mouse-accel-off", "no-ads", "no-web-search", "file-ext", "restore-on"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Gaming + Streaming",
+      "description": "Todo lo del perfil Gaming más OBS Studio, Stream Deck, mezclador de audio virtual y Discord. Plan de energía de máximo rendimiento.",
+      "software": ["@gpu", "vcredist", "vcredist-x86", "directx", "steam", "epic", "xbox", "discord", "obs", "streamdeck", "voicemeeter", "afterburner", "hwinfo", "sharex", "audacity", "spotify", "7zip", "firefox"],
+      "bloatware": ["@recommended"], "keepBloatware": ["xbox-app", "xbox-overlay", "xbox-speech", "xbox-tcui", "xbox-identity"],
+      "tweaks": ["power-ultimate", "game-mode", "hags", "gamedvr-off", "mouse-accel-off", "no-ads", "no-web-search", "file-ext", "restore-on"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Creativo (foto, vídeo y audio)",
+      "description": "Edición de imagen, vector, 3D, audio y vídeo con herramientas libres, y controladores de la gráfica (aceleración en render y codificación).",
+      "software": ["@gpu", "gimp", "inkscape", "krita", "blender", "audacity", "handbrake", "obs", "vlc", "7zip", "hwinfo"],
+      "bloatware": ["@recommended"], "keepBloatware": [],
+      "tweaks": ["power-high", "file-ext", "no-ads", "no-web-search", "restore-on"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Desarrollo",
+      "description": "Entorno de programación: VS Code, Git, Python, Node.js, WSL, Docker, PowerShell 7 y Terminal.",
+      "software": ["vscode", "git", "githubdesktop", "python", "nodejs", "wsl", "docker", "pwsh", "terminal", "postman", "powertoys", "7zip", "notepadpp"],
+      "bloatware": ["@recommended"], "keepBloatware": [],
+      "tweaks": ["file-ext", "hidden-files", "explorer-thispc", "no-ads", "no-web-search", "sudo-on", "restore-on"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Estudiante",
+      "description": "Ofimática gratuita, notas, bibliografía y lector de PDF ligero.",
+      "software": ["libreoffice", "zotero", "obsidian", "sumatra", "firefox", "vlc", "7zip"],
+      "bloatware": ["@recommended"], "keepBloatware": ["xbox-app", "xbox-overlay"],
+      "tweaks": ["power-balanced", "file-ext", "no-ads", "no-web-search", "restore-on", "smartscreen-pua"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    },
+    {
+      "name": "Equipo básico (pocos recursos)",
+      "description": "Para equipos con 4-8 GB de RAM o disco mecánico: solo programas ligeros, sin servicios residentes, y limpieza a fondo.",
+      "software": ["7zip", "sumatra", "firefox", "vlc", "notepadpp"],
+      "bloatware": ["@recommended", "your-phone", "copilot", "todo"], "keepBloatware": [],
+      "tweaks": ["power-balanced", "no-ads", "no-web-search", "telemetry-min", "gamedvr-off", "file-ext"],
+      "removeProvisioned": true, "restorePoint": true, "gpupdate": false, "intuneSync": false, "upgradeAll": true
+    }
+  ]
+}

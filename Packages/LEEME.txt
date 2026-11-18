@@ -1,0 +1,17 @@
+CARPETA Packages - instaladores locales (equivalente a la biblioteca de contenido de SCCM)
+
+Usa esta carpeta para software que no esta en winget, que es de pago/licenciado
+o que quieres instalar sin conexion a Internet.
+
+1. Crea una subcarpeta por aplicacion, por ejemplo:  Packages\MiApp\setup.msi
+2. Anade una entrada al catalogo Catalog\software.json con:
+     "source": "local",
+     "localPath": "Packages\\MiApp\\setup.msi",
+     "installArgs": "PARAMETRO=VALOR"            (opcional)
+   - Los .msi se instalan con:  msiexec /i <archivo> /qn /norestart <installArgs>
+   - Los .exe se ejecutan con:  <archivo> <installArgs>   (indica tu el modificador silencioso: /S, /quiet, /verysilent...)
+   - {pkgdir} en installArgs se sustituye por la carpeta del instalador.
+3. Rellena "detect" para que Eureka_Utils sepa si ya esta instalado.
+
+Ejemplo incluido: Packages\Office (Microsoft 365 Apps con la Herramienta de implementacion de Office).
+Copia ahi setup.exe de la ODT; configuration.xml ya esta preparado en espanol, 64 bits.

@@ -1,0 +1,899 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Eureka_Utils" Width="1280" Height="840" MinWidth="1060" MinHeight="680"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}">
+  <Window.Resources>
+    <!-- Paleta (la interfaz la sustituye en tiempo de ejecución para el modo claro/oscuro) -->
+    <SolidColorBrush x:Key="Bg" Color="#F3F4F6"/>
+    <SolidColorBrush x:Key="Surface" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="SurfaceAlt" Color="#F9FAFB"/>
+    <SolidColorBrush x:Key="Border" Color="#E5E7EB"/>
+    <SolidColorBrush x:Key="BorderStrong" Color="#D1D5DB"/>
+    <SolidColorBrush x:Key="Text" Color="#1F2937"/>
+    <SolidColorBrush x:Key="TextMuted" Color="#6B7280"/>
+    <SolidColorBrush x:Key="Accent" Color="#0F6CBD"/>
+    <SolidColorBrush x:Key="AccentText" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Header" Color="#0F6CBD"/>
+    <SolidColorBrush x:Key="HeaderSub" Color="#D6E6F7"/>
+    <SolidColorBrush x:Key="HeaderPill" Color="#0B5A9E"/>
+    <SolidColorBrush x:Key="Danger" Color="#B42318"/>
+    <SolidColorBrush x:Key="DangerBorder" Color="#F4B4AE"/>
+    <SolidColorBrush x:Key="Hover" Color="#E6EEF7"/>
+    <SolidColorBrush x:Key="Selection" Color="#DCE8F5"/>
+    <SolidColorBrush x:Key="LogBg" Color="#111827"/>
+    <SolidColorBrush x:Key="LogText" Color="#E5E7EB"/>
+    <SolidColorBrush x:Key="Input" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Warn" Color="#B45309"/>
+    <SolidColorBrush x:Key="WarnBg" Color="#FEF3C7"/>
+
+    <Style TargetType="Button">
+      <Setter Property="Background" Value="{DynamicResource Surface}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="Margin" Value="0,0,8,8"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.82"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.65"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{DynamicResource Accent}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+      <Setter Property="Foreground" Value="{DynamicResource AccentText}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Foreground" Value="{DynamicResource Danger}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource DangerBorder}"/>
+    </Style>
+    <Style x:Key="HeaderButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{DynamicResource HeaderPill}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource HeaderPill}"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Margin" Value="8,0,0,0"/>
+      <Setter Property="Padding" Value="12,4"/>
+    </Style>
+    <Style TargetType="GroupBox">
+      <Setter Property="Margin" Value="0,0,0,12"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GroupBox">
+            <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="14">
+              <DockPanel>
+                <ContentPresenter DockPanel.Dock="Top" ContentSource="Header" Margin="0,0,0,10"
+                                  TextBlock.FontWeight="SemiBold" TextBlock.FontSize="14"/>
+                <ContentPresenter/>
+              </DockPanel>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="6,4"/>
+      <Setter Property="Background" Value="{DynamicResource Input}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource Text}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style TargetType="PasswordBox">
+      <Setter Property="Padding" Value="6,4"/>
+      <Setter Property="Background" Value="{DynamicResource Input}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource Text}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{DynamicResource Text}"/></Style>
+    <Style TargetType="RadioButton"><Setter Property="Foreground" Value="{DynamicResource Text}"/><Setter Property="Margin" Value="0,0,0,6"/></Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="Background" Value="{DynamicResource Input}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+      <Setter Property="Padding" Value="8,5,26,5"/>
+      <Setter Property="MinHeight" Value="30"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton Focusable="False" ClickMode="Press"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{DynamicResource Input}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1" CornerRadius="4">
+                      <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Data="M0,0 L4,4 L8,0"
+                            Stroke="{DynamicResource TextMuted}" StrokeThickness="1.5"/>
+                    </Border>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter Margin="{TemplateBinding Padding}" IsHitTestVisible="False" VerticalAlignment="Center"
+                                Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"/>
+              <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1" CornerRadius="4"
+                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                  <ScrollViewer><ItemsPresenter/></ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="Bd" Background="Transparent" Padding="8,5"><ContentPresenter/></Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource Hover}"/></Trigger>
+              <Trigger Property="IsSelected" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource Selection}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="TabItem">
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabItem">
+            <Border x:Name="Bd" Padding="13,9" Margin="0,0,1,0" BorderThickness="0,0,0,3" BorderBrush="Transparent" Background="Transparent">
+              <ContentPresenter x:Name="Hd" ContentSource="Header" TextElement.Foreground="{DynamicResource TextMuted}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter TargetName="Hd" Property="TextElement.Foreground" Value="{DynamicResource Accent}"/>
+                <Setter TargetName="Hd" Property="TextElement.FontWeight" Value="SemiBold"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Hover}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="DataGrid">
+      <Setter Property="Background" Value="{DynamicResource Surface}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+      <Setter Property="RowBackground" Value="{DynamicResource Surface}"/>
+      <Setter Property="AlternatingRowBackground" Value="{DynamicResource SurfaceAlt}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+      <Setter Property="RowHeaderWidth" Value="0"/>
+      <Setter Property="HeadersVisibility" Value="Column"/>
+      <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+      <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Border}"/>
+      <Setter Property="AutoGenerateColumns" Value="False"/>
+      <Setter Property="CanUserAddRows" Value="False"/>
+      <Setter Property="CanUserDeleteRows" Value="False"/>
+      <Setter Property="SelectionMode" Value="Single"/>
+      <Setter Property="MinRowHeight" Value="30"/>
+    </Style>
+    <Style TargetType="DataGridColumnHeader">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAlt}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+      <Setter Property="Padding" Value="8,7"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,1"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style TargetType="DataGridCell">
+      <Setter Property="Padding" Value="8,0"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="DataGridCell">
+            <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource Selection}"/>
+          <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="WrapCell" TargetType="TextBlock">
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,5"/>
+    </Style>
+    <Style x:Key="WrapText" TargetType="TextBlock">
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,4"/>
+    </Style>
+    <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource WrapText}">
+      <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,10,8"/>
+    </Style>
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,12,0,3"/>
+    </Style>
+    <Style x:Key="Field" TargetType="FrameworkElement">
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <DataTemplate x:Key="KeyValueTemplate">
+      <Grid Margin="0,3">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding Key}" Foreground="{DynamicResource TextMuted}"/>
+        <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"/>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="CheckTemplate">
+      <Grid Margin="0,3">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="62"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding Resultado}" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="1" TextWrapping="Wrap">
+          <Run Text="{Binding Comprobacion, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" — "/><Run Text="{Binding Detalle, Mode=OneWay}" Foreground="{DynamicResource TextMuted}"/>
+        </TextBlock>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="RecTemplate">
+      <Grid Margin="0,4">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="72"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding Nivel}" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"/>
+        <TextBlock Grid.Column="1" Text="{Binding Texto}" TextWrapping="Wrap"/>
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel>
+    <!-- Cabecera -->
+    <Border DockPanel.Dock="Top" Background="{DynamicResource Header}" Padding="22,12">
+      <Grid>
+        <StackPanel>
+          <TextBlock Text="Eureka_Utils" Foreground="White" FontSize="21" FontWeight="SemiBold"/>
+          <TextBlock x:Name="HeaderSubtitle" Foreground="{DynamicResource HeaderSub}" Margin="0,2,0,0" Text="Detectando equipo..."/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Border Background="{DynamicResource HeaderPill}" CornerRadius="12" Padding="12,5">
+            <TextBlock x:Name="HeaderAdmin" Foreground="White" Text="..."/>
+          </Border>
+          <ComboBox x:Name="LangCombo" Width="140" Margin="8,0,0,0" DisplayMemberPath="Name" ToolTip="Idioma de la interfaz"/>
+          <Button x:Name="BtnTheme" Style="{StaticResource HeaderButton}" Content="Tema: sistema" ToolTip="Cambiar entre modo claro, oscuro o el del sistema"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Aviso de post-instalación -->
+    <Border x:Name="PostBanner" DockPanel.Dock="Top" Background="{DynamicResource WarnBg}" Padding="22,8" Visibility="Collapsed">
+      <TextBlock x:Name="PostBannerText" Foreground="#92400E" TextWrapping="Wrap" FontWeight="SemiBold"/>
+    </Border>
+
+    <!-- Barra de estado -->
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="18,8">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="StatusText" Text="Listo." TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}"/>
+        <ProgressBar x:Name="Progress" Grid.Column="1" Height="6" Visibility="Hidden" Foreground="{DynamicResource Accent}" Background="{DynamicResource Border}" BorderThickness="0"/>
+      </Grid>
+    </Border>
+
+    <TabControl x:Name="Tabs" Margin="14,8,14,10" Padding="0,12,0,0" BorderThickness="0" Background="Transparent">
+
+      <!-- ===================== 0 EQUIPO ===================== -->
+      <TabItem Header="Equipo">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,6,0">
+            <StackPanel>
+              <GroupBox Header="Sistema"><ItemsControl x:Name="SysInfoList" ItemTemplate="{StaticResource KeyValueTemplate}"/></GroupBox>
+              <GroupBox Header="Identidad y gestión"><ItemsControl x:Name="JoinInfoList" ItemTemplate="{StaticResource KeyValueTemplate}"/></GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="6,0,0,0">
+            <StackPanel>
+              <GroupBox Header="Perfiles de configuración">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="Un perfil encadena pasos como una secuencia de tareas: punto de restauración, limpieza de bloatware, ajustes de Windows, controladores de la gráfica detectada, software con sus dependencias, actualizaciones y sincronización. Edítalos en Catalog\profiles.json."/>
+                  <ComboBox x:Name="ProfileCombo" DisplayMemberPath="display" Margin="0,8,0,8"/>
+                  <TextBlock x:Name="ProfileDesc" Style="{StaticResource WrapText}"/>
+                  <WrapPanel Margin="0,8,0,0">
+                    <Button x:Name="BtnApplyProfile" Content="Aplicar perfil" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnMarkProfile" Content="Revisar selección antes de aplicar"/>
+                  </WrapPanel>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Acciones">
+                <WrapPanel>
+                  <Button x:Name="BtnRefresh" Content="Actualizar información"/>
+                  <Button x:Name="BtnRestorePoint" Content="Crear punto de restauración"/>
+                  <Button x:Name="BtnReport" Content="Exportar informe del equipo (HTML)"/>
+                  <Button x:Name="BtnOpenExports" Content="Abrir carpeta de exportaciones"/>
+                </WrapPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 1 HARDWARE ===================== -->
+      <TabItem Header="Hardware">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,6,0">
+            <StackPanel>
+              <GroupBox Header="Componentes"><ItemsControl x:Name="HwInfoList" ItemTemplate="{StaticResource KeyValueTemplate}"/></GroupBox>
+              <GroupBox Header="Tarjetas gráficas">
+                <DataGrid x:Name="HwGpuGrid" IsReadOnly="True" MaxHeight="180">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Modelo" Binding="{Binding Name}" Width="2*"/>
+                    <DataGridTextColumn Header="Fabricante" Binding="{Binding Vendor}" Width="90"/>
+                    <DataGridTextColumn Header="VRAM" Binding="{Binding VramText}" Width="70"/>
+                    <DataGridTextColumn Header="Controlador" Binding="{Binding DriverVersion}" Width="1.4*"/>
+                    <DataGridTextColumn Header="Fecha" Binding="{Binding DriverDateText}" Width="90"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+              </GroupBox>
+              <GroupBox Header="Discos">
+                <DataGrid x:Name="HwDiskGrid" IsReadOnly="True" MaxHeight="180">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Modelo" Binding="{Binding Model}" Width="2*"/>
+                    <DataGridTextColumn Header="Tipo" Binding="{Binding Media}" Width="80"/>
+                    <DataGridTextColumn Header="Bus" Binding="{Binding Bus}" Width="70"/>
+                    <DataGridTextColumn Header="Tamaño" Binding="{Binding SizeText}" Width="80"/>
+                    <DataGridTextColumn Header="Estado" Binding="{Binding Health}" Width="80"/>
+                    <DataGridTextColumn Header="Sistema" Binding="{Binding SystemText}" Width="70"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="6,0,0,0">
+            <StackPanel>
+              <GroupBox Header="Recomendaciones para este hardware">
+                <StackPanel>
+                  <ItemsControl x:Name="HwRecList" ItemTemplate="{StaticResource RecTemplate}"/>
+                  <WrapPanel Margin="0,8,0,0">
+                    <Button x:Name="BtnHwMarkRec" Content="Marcar controladores recomendados" Style="{StaticResource PrimaryButton}"/>
+                  </WrapPanel>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Compatibilidad con Windows 11"><ItemsControl x:Name="HwCompatList" ItemTemplate="{StaticResource CheckTemplate}"/></GroupBox>
+              <GroupBox Header="Herramientas">
+                <WrapPanel>
+                  <Button x:Name="BtnBattery" Content="Informe de batería"/>
+                  <Button x:Name="BtnDevMgr" Content="Administrador de dispositivos"/>
+                  <Button x:Name="BtnOptionalUpdates" Content="Controladores de Windows Update"/>
+                </WrapPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 2 SOFTWARE ===================== -->
+      <TabItem Header="Software">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2" Margin="0,0,0,10">
+            <TextBlock Text="Buscar" Style="{StaticResource Label}" Margin="0,0,6,0"/>
+            <TextBox x:Name="SwSearch" Width="200"/>
+            <TextBlock Text="Categoría" Style="{StaticResource Label}" Margin="16,0,6,0"/>
+            <ComboBox x:Name="SwCategory" Width="250"/>
+            <CheckBox x:Name="SwOnlyMissing" Content="Solo no instalados" VerticalAlignment="Center" Margin="16,0,16,0"/>
+            <Button x:Name="BtnSwDetect" Content="Volver a detectar" Margin="0"/>
+          </StackPanel>
+          <DataGrid x:Name="SwGrid" Grid.Row="1">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="38">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Aplicación" Binding="{Binding Name}" IsReadOnly="True" Width="2.4*"/>
+              <DataGridTextColumn Header="Categoría" Binding="{Binding CategoryText}" IsReadOnly="True" Width="1.6*"/>
+              <DataGridTextColumn Header="Estado" Binding="{Binding Status}" IsReadOnly="True" Width="100"/>
+              <DataGridTextColumn Header="Disco" Binding="{Binding DiskText}" IsReadOnly="True" Width="66"/>
+              <DataGridTextColumn Header="RAM" Binding="{Binding RamText}" IsReadOnly="True" Width="66"/>
+              <DataGridTextColumn Header="Origen" Binding="{Binding Source}" IsReadOnly="True" Width="72"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <Border Grid.Row="1" Grid.Column="1" Margin="12,0,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="16">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <TextBlock x:Name="SwDetName" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Text="Selecciona una aplicación"/>
+                <TextBlock x:Name="SwDetMeta" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,3,0,6"/>
+                <TextBlock x:Name="SwDetDesc" TextWrapping="Wrap" Text="Verás aquí qué hace, qué dependencias necesita y cuántos recursos consumirá en este equipo."/>
+                <TextBlock Text="Dependencias" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="SwDetDeps" TextWrapping="Wrap" Text="—"/>
+                <TextBlock Text="Requisitos" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="SwDetReq" TextWrapping="Wrap" Text="—"/>
+                <TextBlock Text="Impacto en recursos" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="SwDetImpact" TextWrapping="Wrap" Text="—"/>
+                <TextBlock Text="Notas" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="SwDetNotes" TextWrapping="Wrap" Text="—"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+          <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="SwImpactSummary" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" Text="Marca aplicaciones para ver el impacto total de la selección."/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="BtnSwClear" Content="Quitar selección" Margin="0,0,8,0"/>
+                <Button x:Name="BtnSwUninstall" Content="Desinstalar" Style="{StaticResource DangerButton}" Margin="0,0,8,0"/>
+                <Button x:Name="BtnSwInstall" Content="Instalar selección" Style="{StaticResource PrimaryButton}" Margin="0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 3 ACTUALIZACIONES ===================== -->
+      <TabItem Header="Actualizaciones">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <WrapPanel Margin="0,0,0,2">
+            <Button x:Name="BtnUpScan" Content="Buscar actualizaciones"/>
+            <CheckBox x:Name="UpUnknown" Content="Incluir apps de versión desconocida" VerticalAlignment="Center" Margin="4,0,16,8"/>
+            <Button x:Name="BtnUpSources" Content="Actualizar orígenes de winget"/>
+            <Button x:Name="BtnWinUpdate" Content="Windows Update"/>
+            <Button x:Name="BtnStoreUpdates" Content="Actualizaciones de Microsoft Store"/>
+          </WrapPanel>
+          <DataGrid x:Name="UpGrid" Grid.Row="1">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="38">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Aplicación" Binding="{Binding Name}" IsReadOnly="True" Width="2*"/>
+              <DataGridTextColumn Header="Id. winget" Binding="{Binding Id}" IsReadOnly="True" Width="2*"/>
+              <DataGridTextColumn Header="Instalada" Binding="{Binding Version}" IsReadOnly="True" Width="*"/>
+              <DataGridTextColumn Header="Disponible" Binding="{Binding Available}" IsReadOnly="True" Width="*"/>
+              <DataGridTextColumn Header="Origen" Binding="{Binding Source}" IsReadOnly="True" Width="80"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <Border x:Name="UpFailPanel" Grid.Row="2" Visibility="Collapsed" Margin="0,10,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Danger}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+            <StackPanel>
+              <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Danger}" Text="No se han podido instalar estas actualizaciones"/>
+              <TextBlock Style="{StaticResource Muted}" Text="El instalador terminó, pero la aplicación sigue sin actualizar. Descárgala e instálala manualmente con el botón de cada fila."/>
+              <DataGrid x:Name="UpFailGrid" IsReadOnly="True" MaxHeight="170" Margin="0,6,0,0">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Aplicación" Binding="{Binding Name}" Width="1.5*"/>
+                  <DataGridTextColumn Header="Instalada" Binding="{Binding Version}" Width="*"/>
+                  <DataGridTextColumn Header="Disponible" Binding="{Binding Available}" Width="*"/>
+                  <DataGridTextColumn Header="Motivo" Binding="{Binding Reason}" Width="2*" ElementStyle="{StaticResource WrapCell}"/>
+                  <DataGridTemplateColumn Header="" Width="190">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate><Button Content="{Binding LinkText}" Tag="{Binding Link}" Margin="0,3" Padding="8,3" Style="{StaticResource PrimaryButton}"/></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                </DataGrid.Columns>
+              </DataGrid>
+            </StackPanel>
+          </Border>
+          <Border Grid.Row="3" Margin="0,10,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="UpSummary" TextWrapping="Wrap" VerticalAlignment="Center" Text="Las actualizaciones se buscan automáticamente al abrir Eureka_Utils."/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="BtnUpSelected" Content="Actualizar seleccionadas" Margin="0,0,8,0"/>
+                <Button x:Name="BtnUpAll" Content="Actualizar todo" Style="{StaticResource PrimaryButton}" Margin="0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 4 BLOATWARE ===================== -->
+      <TabItem Header="Bloatware">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="BtnBwDetect" Content="Volver a detectar" Margin="0,0,8,0"/>
+            <Button x:Name="BtnBwRecommended" Content="Marcar recomendados" Margin="0,0,16,0"/>
+            <CheckBox x:Name="BwOnlyPresent" Content="Solo los presentes en el equipo" IsChecked="True" VerticalAlignment="Center"/>
+          </StackPanel>
+          <DataGrid x:Name="BwGrid" Grid.Row="1">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="38">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Aplicación" Binding="{Binding Name}" IsReadOnly="True" Width="1.6*"/>
+              <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" IsReadOnly="True" Width="60"/>
+              <DataGridTextColumn Header="Riesgo al quitar" Binding="{Binding RiskText}" IsReadOnly="True" Width="110"/>
+              <DataGridTextColumn Header="Estado" Binding="{Binding Status}" IsReadOnly="True" Width="170"/>
+              <DataGridTextColumn Header="Descripción" Binding="{Binding Description}" IsReadOnly="True" Width="3*" ElementStyle="{StaticResource WrapCell}"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <Border Grid.Row="2" Margin="0,10,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <CheckBox x:Name="BwProvisioned" IsChecked="True" Margin="0,0,0,6" Content="Retirar también del aprovisionamiento (no se reinstalarán al crear nuevos usuarios)"/>
+                <CheckBox x:Name="BwRestorePoint" IsChecked="True" Content="Crear punto de restauración antes de quitar"/>
+                <TextBlock x:Name="BwSummary" Style="{StaticResource Muted}" Margin="0,6,0,0"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="BtnBwRestore" Content="Reinstalar seleccionados" Margin="0,0,8,0"/>
+                <Button x:Name="BtnBwRemove" Content="Quitar seleccionados" Style="{StaticResource PrimaryButton}" Margin="0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 5 AJUSTES ===================== -->
+      <TabItem Header="Ajustes">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,8" Text="Ajustes de Windows que usan los perfiles. Los de ámbito 'Usuario' se aplican a la cuenta que ejecuta Eureka_Utils; los de 'Equipo', a todo el PC."/>
+          <DataGrid x:Name="TwGrid" Grid.Row="1">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="" Width="38">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate><CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Ajuste" Binding="{Binding Name}" IsReadOnly="True" Width="1.6*"/>
+              <DataGridTextColumn Header="Categoría" Binding="{Binding Category}" IsReadOnly="True" Width="110"/>
+              <DataGridTextColumn Header="Ámbito" Binding="{Binding Scope}" IsReadOnly="True" Width="80"/>
+              <DataGridTextColumn Header="Estado" Binding="{Binding Status}" IsReadOnly="True" Width="100"/>
+              <DataGridTextColumn Header="Descripción" Binding="{Binding Description}" IsReadOnly="True" Width="3*" ElementStyle="{StaticResource WrapCell}"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <Border Grid.Row="2" Margin="0,10,0,0" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="TwSummary" Style="{StaticResource Muted}" VerticalAlignment="Center"/>
+              <Button x:Name="BtnTwApply" Grid.Column="1" Content="Aplicar seleccionados" Style="{StaticResource PrimaryButton}" Margin="0"/>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 6 CUENTAS Y DOMINIO ===================== -->
+      <TabItem Header="Cuentas y dominio">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,6,0">
+            <StackPanel>
+              <GroupBox Header="Cuenta profesional (Microsoft 365 / Entra ID) con verificación en dos pasos">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Cuenta (UPN)" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="AccUpn" Grid.Column="1" Margin="0,0,8,8" ToolTip="usuario@empresa.com"/>
+                    <Button x:Name="BtnAccCheck" Grid.Column="2" Content="Comprobar cuenta" Margin="0,0,0,8"/>
+                  </Grid>
+                  <ItemsControl x:Name="AccChecks" ItemTemplate="{StaticResource CheckTemplate}" Margin="0,0,0,6"/>
+                  <WrapPanel>
+                    <Button x:Name="BtnAccJoinEntra" Content="Unir equipo a Entra ID" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnAccIntune" Content="Inscribir solo en Intune"/>
+                    <Button x:Name="BtnAccAddWork" Content="Añadir cuenta profesional"/>
+                    <Button x:Name="BtnAccMfa" Content="Registrar métodos MFA"/>
+                    <Button x:Name="BtnAccHello" Content="Windows Hello / PIN"/>
+                  </WrapPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="Eureka_Utils no pide ni guarda la contraseña de la cuenta profesional: abre la ventana oficial de Microsoft con el usuario ya escrito. Ahí se escribe la contraseña y se aprueba la notificación de doble factor (Microsoft Authenticator con número, SMS, llamada, llave FIDO2 o Windows Hello), tal como lo exija la organización. Si la cuenta aún no tiene métodos, pulsa 'Registrar métodos MFA'."/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Cuentas locales">
+                <StackPanel>
+                  <DataGrid x:Name="AccLocalGrid" IsReadOnly="True" MaxHeight="170" Margin="0,0,0,10">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Usuario" Binding="{Binding Name}" Width="*"/>
+                      <DataGridTextColumn Header="Nombre" Binding="{Binding FullName}" Width="*"/>
+                      <DataGridTextColumn Header="Activa" Binding="{Binding EnabledText}" Width="55"/>
+                      <DataGridTextColumn Header="Admin." Binding="{Binding AdminText}" Width="55"/>
+                      <DataGridTextColumn Header="Último inicio" Binding="{Binding LastLogon}" Width="120"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <TextBlock Text="Nuevo usuario" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="AccNewUser" Grid.Column="1" Margin="0,0,0,8"/>
+                    <TextBlock Text="Nombre completo" Grid.Row="1" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="AccNewFull" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+                  </Grid>
+                  <WrapPanel Margin="0,0,0,6">
+                    <CheckBox x:Name="AccNewAdmin" Content="Administrador" Margin="0,0,16,0"/>
+                    <CheckBox x:Name="AccMustChange" Content="Cambiar contraseña en el primer inicio" IsChecked="True"/>
+                  </WrapPanel>
+                  <WrapPanel>
+                    <Button x:Name="BtnAccCreate" Content="Crear cuenta (pide la contraseña)"/>
+                    <Button x:Name="BtnAccUsersRefresh" Content="Actualizar lista"/>
+                  </WrapPanel>
+                  <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Hacer administrador" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="AccAdminMember" Grid.Column="1" Margin="0,0,8,8" ToolTip="usuario local, DOMINIO\usuario o AzureAD\usuario@empresa.com"/>
+                    <Button x:Name="BtnAccAddAdmin" Grid.Column="2" Content="Añadir" Margin="0,0,0,8"/>
+                  </Grid>
+                </StackPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="6,0,0,0">
+            <StackPanel>
+              <GroupBox Header="Active Directory (local)">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <TextBlock Text="Dominio (FQDN)" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="DomName" Grid.Column="1" Margin="0,0,0,8" ToolTip="Ejemplo: corp.contoso.local"/>
+                    <TextBlock Text="Unidad organizativa" Grid.Row="1" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="DomOU" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" ToolTip="Opcional: OU=Portatiles,OU=Equipos,DC=corp,DC=contoso,DC=local"/>
+                    <TextBlock Text="Nuevo nombre" Grid.Row="2" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="DomNewName" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" ToolTip="Opcional. Máximo 15 caracteres"/>
+                  </Grid>
+                  <CheckBox x:Name="DomRestart" Content="Reiniciar automáticamente al terminar (60 s)" Margin="0,2,0,10"/>
+                  <WrapPanel>
+                    <Button x:Name="BtnDomCheck" Content="Comprobar requisitos"/>
+                    <Button x:Name="BtnDomJoin" Content="Unir al dominio" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnRename" Content="Solo renombrar"/>
+                    <Button x:Name="BtnGpUpdate" Content="gpupdate /force"/>
+                    <Button x:Name="BtnDomLeave" Content="Salir del dominio" Style="{StaticResource DangerButton}"/>
+                  </WrapPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="Active Directory no admite notificaciones de doble factor al unir equipos: se pide usuario y contraseña de una cuenta con permiso de unión."/>
+                  <ItemsControl x:Name="DomChecks" ItemTemplate="{StaticResource CheckTemplate}" Margin="0,6,0,0"/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Intune y unión híbrida">
+                <StackPanel>
+                  <TextBlock x:Name="EntraStatus" Style="{StaticResource WrapText}" Text="—"/>
+                  <WrapPanel Margin="0,8,0,0">
+                    <Button x:Name="BtnIntuneSync" Content="Sincronizar con Intune" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnHybridJoin" Content="Forzar unión híbrida"/>
+                    <Button x:Name="BtnMdmEnroll" Content="Inscripción MDM automática"/>
+                    <Button x:Name="BtnEntraJoin" Content="Acceso al trabajo o colegio"/>
+                    <Button x:Name="BtnCompanyPortal" Content="Portal de empresa"/>
+                    <Button x:Name="BtnMdmDiag" Content="Diagnóstico MDM (.cab)"/>
+                  </WrapPanel>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Windows Autopilot">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Etiqueta de grupo" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="ApGroupTag" Grid.Column="1" Margin="0,0,8,8" ToolTip="Opcional (Group Tag)"/>
+                    <Button x:Name="BtnAutopilot" Grid.Column="2" Content="Exportar hash" Margin="0,0,0,8"/>
+                  </Grid>
+                </StackPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 7 INSTALAR WINDOWS ===================== -->
+      <TabItem Header="Instalar Windows (USB)">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,6,0">
+            <StackPanel>
+              <GroupBox Header="1. Imagen de Windows 11 o posterior (ISO)">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBox x:Name="UsbIso" Margin="0,0,8,8"/>
+                    <Button x:Name="BtnUsbBrowse" Grid.Column="1" Content="Examinar..."/>
+                    <Button x:Name="BtnUsbReadIso" Grid.Column="2" Content="Leer ISO" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8"/>
+                  </Grid>
+                  <TextBlock x:Name="UsbIsoInfo" Style="{StaticResource Muted}" Text="Descarga la ISO oficial de Windows 11 desde la web de Microsoft y selecciónala."/>
+                  <Button x:Name="BtnUsbDownloadIso" Content="Abrir la descarga oficial de Windows 11" HorizontalAlignment="Left" Margin="0,4,0,0"/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="2. Opciones de instalación">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                  <TextBlock Text="Edición" Style="{StaticResource Label}"/>
+                  <ComboBox x:Name="UsbEdition" Grid.Column="1" DisplayMemberPath="Name" Margin="0,0,0,8"/>
+                  <TextBlock Text="Región y teclado" Grid.Row="1" Style="{StaticResource Label}"/>
+                  <ComboBox x:Name="UsbRegion" Grid.Row="1" Grid.Column="1" DisplayMemberPath="Name" Margin="0,0,0,8"/>
+                  <TextBlock Text="Zona horaria" Grid.Row="2" Style="{StaticResource Label}"/>
+                  <ComboBox x:Name="UsbTimeZone" Grid.Row="2" Grid.Column="1" DisplayMemberPath="Name" Margin="0,0,0,8"/>
+                  <TextBlock Text="Nombre del equipo" Grid.Row="3" Style="{StaticResource Label}"/>
+                  <TextBox x:Name="UsbComputerName" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" ToolTip="Vacío = nombre aleatorio. Máx. 15 caracteres"/>
+                  <TextBlock Text="Clave de producto" Grid.Row="4" Style="{StaticResource Label}"/>
+                  <TextBox x:Name="UsbProductKey" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8" ToolTip="Opcional. Vacío = licencia digital o clave de la BIOS"/>
+                  <TextBlock Text="Disco de destino" Grid.Row="5" Style="{StaticResource Label}" VerticalAlignment="Top"/>
+                  <StackPanel Grid.Row="5" Grid.Column="1">
+                    <RadioButton x:Name="UsbDiskManual" GroupName="disk" IsChecked="True" Content="Elegir el disco durante la instalación (recomendado)"/>
+                    <RadioButton x:Name="UsbDiskWipe" GroupName="disk" Content="Automático: BORRAR por completo el disco 0 (sin preguntas)"/>
+                    <TextBlock Style="{StaticResource Muted}" Foreground="{DynamicResource Danger}" Text="El modo automático elimina todas las particiones y datos del disco 0. Úsalo solo en equipos con un único disco."/>
+                  </StackPanel>
+                </Grid>
+              </GroupBox>
+              <GroupBox Header="3. Cuenta de usuario">
+                <StackPanel>
+                  <RadioButton x:Name="UsbAccLocal" GroupName="acc" IsChecked="True" Content="Cuenta local de administrador (se crea durante la instalación)"/>
+                  <Grid Margin="22,4,0,4">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <TextBlock Text="Usuario" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="UsbUser" Grid.Column="1" Margin="0,0,0,8"/>
+                    <TextBlock Text="Nombre completo" Grid.Row="1" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="UsbFullName" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+                    <TextBlock Text="Contraseña" Grid.Row="2" Style="{StaticResource Label}"/>
+                    <PasswordBox x:Name="UsbPassword" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"/>
+                    <TextBlock Text="Repetir contraseña" Grid.Row="3" Style="{StaticResource Label}"/>
+                    <PasswordBox x:Name="UsbPassword2" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8"/>
+                  </Grid>
+                  <CheckBox x:Name="UsbAutoLogon" Margin="22,0,0,10" IsChecked="True" Content="Iniciar sesión automáticamente la primera vez (la configuración sigue sola)"/>
+                  <RadioButton x:Name="UsbAccWork" GroupName="acc" Content="Cuenta profesional Microsoft 365 / Entra ID (inicio de sesión con MFA durante la instalación)"/>
+                  <TextBlock Style="{StaticResource Muted}" Margin="22,0,0,0" Text="Windows mostrará la pantalla de Microsoft para iniciar sesión con la cuenta de la empresa y aprobar el doble factor. El equipo queda unido a Entra ID (e inscrito en Intune si está configurado) y Eureka_Utils continúa en ese primer inicio."/>
+                </StackPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="6,0,0,0">
+            <StackPanel>
+              <GroupBox Header="4. Configuración tras instalar">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="En el primer inicio de sesión se abre Eureka_Utils (copiado en C:\Eureka_Utils) y aplica el perfil elegido: espera a la red y a winget, quita bloatware, aplica ajustes, instala controladores de la gráfica detectada y el software, y actualiza todo."/>
+                  <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <TextBlock Text="Perfil" Style="{StaticResource Label}"/>
+                    <ComboBox x:Name="UsbProfile" Grid.Column="1" DisplayMemberPath="display" Margin="0,0,0,8"/>
+                    <TextBlock Text="Cuenta Intune" Grid.Row="1" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="UsbWorkUpn" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" ToolTip="Opcional: usuario@empresa.com para inscribir tras instalar (cuenta local)"/>
+                    <TextBlock Text="Tras el perfil" Grid.Row="2" Style="{StaticResource Label}"/>
+                    <ComboBox x:Name="UsbEnroll" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8">
+                      <ComboBoxItem Content="No hacer nada más" IsSelected="True"/>
+                      <ComboBoxItem Content="Inscribir en Intune con la cuenta (MFA)"/>
+                      <ComboBoxItem Content="Unir a Entra ID con la cuenta (MFA)"/>
+                    </ComboBox>
+                  </Grid>
+                  <CheckBox x:Name="UsbAutoApply" IsChecked="True" Content="Aplicar el perfil automáticamente (sin pulsar nada)"/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="5. Crear el USB">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <ComboBox x:Name="UsbDisk" DisplayMemberPath="Label" Margin="0,0,8,8"/>
+                    <Button x:Name="BtnUsbRefresh" Grid.Column="1" Content="Actualizar" Margin="0,0,0,8"/>
+                  </Grid>
+                  <TextBlock Style="{StaticResource Muted}" Text="Memoria USB de 8 GB o más. Se BORRA por completo y se formatea en FAT32 (arranque UEFI). Si la imagen supera 4 GB se divide automáticamente. Tarda de 10 a 30 minutos."/>
+                  <WrapPanel Margin="0,8,0,0">
+                    <Button x:Name="BtnUsbCreate" Content="Crear USB de instalación" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnUsbSaveXml" Content="Guardar solo autounattend.xml"/>
+                  </WrapPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="'Guardar solo autounattend.xml' sirve para un USB creado con Rufus, Ventoy o la herramienta de Microsoft: copia el XML a la raíz del USB y la carpeta de Eureka_Utils a sources\$OEM$\$1\Eureka_Utils."/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Cómo se usa">
+                <TextBlock Style="{StaticResource WrapText}" Text="1) Crea el USB.  2) En el equipo a formatear, entra en el menú de arranque (F12, F11, F8 o Esc según el fabricante) y elige el USB en modo UEFI.  3) La instalación avanza sola (si elegiste disco manual, selecciona el disco y pulsa Siguiente).  4) Tras el primer inicio de sesión Eureka_Utils termina la configuración y muestra el resultado."/>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 8 DIAGNÓSTICO ===================== -->
+      <TabItem Header="Diagnóstico">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,6,0">
+            <StackPanel>
+              <GroupBox Header="Estado del sistema operativo">
+                <StackPanel>
+                  <WrapPanel><Button x:Name="BtnDiagRun" Content="Analizar el sistema" Style="{StaticResource PrimaryButton}"/></WrapPanel>
+                  <ItemsControl x:Name="DiagChecks" ItemTemplate="{StaticResource CheckTemplate}"/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Pruebas y reparación de Windows">
+                <StackPanel>
+                  <WrapPanel>
+                    <Button x:Name="BtnSfc" Content="SFC /scannow"/>
+                    <Button x:Name="BtnDismScan" Content="DISM: comprobar imagen"/>
+                    <Button x:Name="BtnDismRestore" Content="DISM: reparar imagen"/>
+                    <Button x:Name="BtnChkdsk" Content="CHKDSK en línea"/>
+                    <Button x:Name="BtnMemTest" Content="Diagnóstico de memoria"/>
+                    <Button x:Name="BtnReliability" Content="Monitor de confiabilidad"/>
+                    <Button x:Name="BtnPerfReport" Content="Informe del sistema"/>
+                    <Button x:Name="BtnEnergy" Content="Informe de energía"/>
+                  </WrapPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="SFC y DISM reparan archivos dañados de Windows (10-30 minutos). El diagnóstico de memoria reinicia el equipo. Los resultados se ven en la pestaña Registro."/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Errores recientes (7 días)">
+                <StackPanel>
+                  <WrapPanel><Button x:Name="BtnDiagEvents" Content="Cargar errores"/></WrapPanel>
+                  <DataGrid x:Name="DiagEvents" IsReadOnly="True" MaxHeight="240">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha}" Width="80"/>
+                      <DataGridTextColumn Header="Nivel" Binding="{Binding Nivel}" Width="60"/>
+                      <DataGridTextColumn Header="Origen" Binding="{Binding Origen}" Width="*"/>
+                      <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="50"/>
+                      <DataGridTextColumn Header="Mensaje" Binding="{Binding Mensaje}" Width="2*" ElementStyle="{StaticResource WrapCell}"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </StackPanel>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="6,0,0,0">
+            <StackPanel>
+              <GroupBox Header="Antivirus y malware">
+                <StackPanel>
+                  <WrapPanel>
+                    <Button x:Name="BtnSecRun" Content="Comprobar seguridad" Style="{StaticResource PrimaryButton}"/>
+                    <Button x:Name="BtnSigUpdate" Content="Actualizar firmas"/>
+                  </WrapPanel>
+                  <ItemsControl x:Name="SecChecks" ItemTemplate="{StaticResource CheckTemplate}"/>
+                  <WrapPanel Margin="0,8,0,0">
+                    <Button x:Name="BtnScanQuick" Content="Análisis rápido"/>
+                    <Button x:Name="BtnScanFull" Content="Análisis completo"/>
+                    <Button x:Name="BtnScanFolder" Content="Analizar carpeta o unidad..."/>
+                    <Button x:Name="BtnScanOffline" Content="Defender sin conexión" Style="{StaticResource DangerButton}"/>
+                  </WrapPanel>
+                  <DataGrid x:Name="SecThreats" IsReadOnly="True" MaxHeight="160" Margin="0,4,0,0">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha}" Width="110"/>
+                      <DataGridTextColumn Header="Amenaza" Binding="{Binding Amenaza}" Width="*"/>
+                      <DataGridTextColumn Header="Recurso" Binding="{Binding Recurso}" Width="*"/>
+                      <DataGridTextColumn Header="Resuelta" Binding="{Binding Resuelta}" Width="70"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                  <TextBlock Style="{StaticResource Muted}" Text="Defender sin conexión reinicia el equipo y analiza el disco fuera de Windows: es la opción más fiable ante malware que se oculta (rootkits)."/>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Escáneres portátiles (también desde USB)">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource Muted}" Text="No se instalan. Microsoft Safety Scanner se descarga en Packages\Rescate dentro de Eureka_Utils, así viaja en el USB para analizar otros equipos (caduca a los 10 días)."/>
+                  <WrapPanel x:Name="RescuePanel" Margin="0,6,0,0">
+                    <Button x:Name="BtnMsert" Content="Microsoft Safety Scanner" Style="{StaticResource PrimaryButton}"/>
+                  </WrapPanel>
+                </StackPanel>
+              </GroupBox>
+              <GroupBox Header="Consolas de administración (MMC)">
+                <WrapPanel x:Name="MmcPanel"/>
+              </GroupBox>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- ===================== 9 REGISTRO ===================== -->
+      <TabItem Header="Registro">
+        <DockPanel>
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button x:Name="BtnOpenLogFile" Content="Abrir archivo de registro"/>
+            <Button x:Name="BtnOpenLogs" Content="Abrir carpeta de registros"/>
+            <TextBlock x:Name="LogPath" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="8,0,0,8"/>
+          </WrapPanel>
+          <TextBox x:Name="LogBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12" Background="{DynamicResource LogBg}" Foreground="{DynamicResource LogText}"
+                   BorderThickness="0" Padding="10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalContentAlignment="Top"/>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

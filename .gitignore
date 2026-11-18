@@ -1,0 +1,20 @@
+# Datos generados en cada ejecución
+Logs/
+Exports/
+Eureka_Utils_Datos/
+Config/preferencias.json
+Config/postinstall*.json
+*.log
+
+# Binarios y compilación (los ejecutables se publican en Releases)
+Dist/
+Build/obj/
+*.exe
+
+# Instaladores descargados o con licencia
+Packages/Rescate/
+Packages/Office/setup.exe
+Packages/Office/Office/
+
+# Documentacion (se distribuye aparte)
+Docs/
