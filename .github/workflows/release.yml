@@ -75,10 +75,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = 'Continue'
           $tag = '${{ github.ref_name }}'
-          gh release view $tag 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) {
+          $existing = @(gh release list --limit 100 --json tagName --jq '.[].tagName') -contains $tag
+          if (-not $existing) {
             gh release create $tag --title "Eureka_Utils $($tag.TrimStart('v'))" --notes-file .github\release-notes.md
           }
           gh release upload $tag (Get-ChildItem release\*.exe).FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw "No se pudieron subir los ejecutables a $tag" }
           "Ejecutables $env:SIGN_STATE publicados en $tag"
