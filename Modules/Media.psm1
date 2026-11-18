@@ -147,8 +147,10 @@ function New-CfgAutounattendXml {
         }
     }
     $name = if ($S.ComputerName) { & $e $S.ComputerName } else { '*' }
-    $copyCmd = 'cmd /c if not exist C:\Eureka_Utils\Eureka_Utils.ps1 for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist "%d:\sources\$OEM$\$1\Eureka_Utils\Eureka_Utils.ps1" robocopy "%d:\sources\$OEM$\$1\Eureka_Utils" C:\Eureka_Utils /E /NFL /NDL /NJH /NJS /NP'
-    $runCmd  = 'cmd /c start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File C:\Eureka_Utils\Eureka_Utils.ps1 -PostInstalacion'
+    $sys = '%SystemRoot%\System32'
+    $aclCmd  = $sys + '\cmd.exe /c if exist C:\Eureka_Utils ' + $sys + '\icacls.exe C:\Eureka_Utils /inheritance:r /grant:r *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /T /C /Q'
+    $copyCmd = $sys + '\cmd.exe /c if not exist C:\Eureka_Utils\Eureka_Utils.ps1 for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist "%d:\sources\$OEM$\$1\Eureka_Utils\Eureka_Utils.ps1" ' + $sys + '\robocopy.exe "%d:\sources\$OEM$\$1\Eureka_Utils" C:\Eureka_Utils /E /NFL /NDL /NJH /NJS /NP'
+    $runCmd  = $sys + '\cmd.exe /c start "" ' + $sys + '\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File C:\Eureka_Utils\Eureka_Utils.ps1 -PostInstalacion'
 
     return @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -180,6 +182,15 @@ $disk
     <component $(& $comp 'Microsoft-Windows-Shell-Setup')>
       <ComputerName>$name</ComputerName>
       <TimeZone>$(& $e $S.TimeZone)</TimeZone>
+    </component>
+    <component $(& $comp 'Microsoft-Windows-Deployment')>
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Proteger C:\Eureka_Utils: solo administradores y SYSTEM pueden modificarla</Description>
+          <Path>$(& $e $aclCmd)</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
     </component>
   </settings>
   <settings pass="oobeSystem">
@@ -245,7 +256,7 @@ function Copy-CfgToolkit {
     <# Copia Eureka_Utils (sin registros ni exportaciones) a un destino. #>
     param([Parameter(Mandatory)][string]$Destination, [hashtable]$PostInstall)
     $root = Get-CfgRoot
-    & robocopy.exe $root $Destination /E /XD (Join-Path $root 'Logs') (Join-Path $root 'Exports') (Join-Path $root 'Dist') (Join-Path $root 'Build\obj') (Join-Path $root 'Docs') /XF '*.log' 'postinstall*.json' 'preferencias.json' /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+    & (Get-CfgSystemExe 'robocopy.exe') $root $Destination /E /XD (Join-Path $root 'Logs') (Join-Path $root 'Exports') (Join-Path $root 'Dist') (Join-Path $root 'Build\obj') (Join-Path $root 'Docs') /XF '*.log' 'postinstall*.json' 'preferencias.json' /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy falló copiando Eureka_Utils (código $LASTEXITCODE)" }
     if ($PostInstall) {
         $cfgDir = Join-Path $Destination 'Config'
@@ -289,7 +300,7 @@ function New-CfgInstallUsb {
         Start-Sleep -Seconds 1
         $src = '{0}:' -f ($img | Get-Volume).DriveLetter
         Write-CfgLog 'Copiando archivos de instalación (varios minutos según la velocidad del USB)...' STEP
-        & robocopy.exe "$src\" "$dst\" /E /XF install.wim install.esd /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+        & (Get-CfgSystemExe 'robocopy.exe') "$src\" "$dst\" /E /XF install.wim install.esd /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Error copiando la ISO (robocopy $LASTEXITCODE)" }
 
         $wim = @("$src\sources\install.wim", "$src\sources\install.esd") | Where-Object { Test-Path $_ } | Select-Object -First 1

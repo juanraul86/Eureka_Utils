@@ -21,7 +21,7 @@
     {
       "name": "Oficina IT (sistemas, soporte y ciberseguridad)",
       "description": "Puesto del departamento de IT: administración de sistemas (RSAT, PowerShell 7, RDP, SSH, Sysinternals), soporte a usuarios (Asistencia rápida, captura, BGInfo) y ciberseguridad (Wireshark, Nmap, Sandbox, Autoruns, System Informer, cifrado, gestor de contraseñas). Además de Microsoft 365.",
-      "software": ["m365", "teams", "companyportal", "pwsh", "terminal", "rsat", "windowsapp", "rdcman", "mremoteng", "putty", "winscp", "ipscanner", "sysinternals", "rufus", "quickassist", "sharex", "bginfo", "wireshark", "nmap", "systeminformer", "autoruns", "procmon", "tcpview", "sigcheck", "adwcleaner", "sandbox", "keepassxc", "veracrypt", "vscode", "git", "7zip", "notepadpp", "everything", "treesize", "hwinfo", "crystaldiskinfo"],
+      "software": ["m365", "teams", "companyportal", "pwsh", "terminal", "rsat", "windowsapp", "rdcman", "mremoteng", "putty", "winscp", "sysinternals", "rufus", "quickassist", "sharex", "bginfo", "systeminformer", "autoruns", "procmon", "tcpview", "sigcheck", "adwcleaner", "sandbox", "keepassxc", "veracrypt", "vscode", "git", "7zip", "notepadpp", "everything", "treesize", "hwinfo", "crystaldiskinfo"],
       "bloatware": ["@recommended"], "keepBloatware": [],
       "tweaks": ["power-balanced", "file-ext", "hidden-files", "explorer-thispc", "fast-startup-off", "no-ads", "no-web-search", "telemetry-min", "restore-on", "smartscreen-pua", "rdp-on", "sudo-on"],
       "removeProvisioned": true, "restorePoint": true, "gpupdate": true, "intuneSync": true, "upgradeAll": true

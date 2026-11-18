@@ -232,6 +232,59 @@ function Resolve-CfgHardwareSoftware {
     return @($out | Where-Object { $_ } | Select-Object -Unique)
 }
 
+function Get-CfgMemoryUsage {
+    <# Consumo REAL de memoria ahora mismo: total del sistema, programas que más usan (agrupados) y,
+       si se pasa el catálogo, la RAM que usa cada aplicación del catálogo que se está ejecutando.
+       Se mide el conjunto de trabajo privado (lo mismo que muestra el Administrador de tareas). #>
+    param($Catalog, $Programs)
+    $os = Get-CimInstance Win32_OperatingSystem
+    $totalMB = [math]::Round($os.TotalVisibleMemorySize / 1KB)
+    $freeMB = [math]::Round($os.FreePhysicalMemory / 1KB)
+    $private = @{}
+    try { foreach ($p in (Get-CimInstance Win32_PerfRawData_PerfProc_Process -Property IDProcess, WorkingSetPrivate -ErrorAction Stop)) { if ($p.IDProcess) { $private[[int]$p.IDProcess] = [double]$p.WorkingSetPrivate } } } catch { }
+    $procs = foreach ($p in (Get-Process -ErrorAction SilentlyContinue)) {
+        $bytes = $private[[int]$p.Id]; if (-not $bytes) { $bytes = [double]$p.WorkingSet64 }
+        $path = $null; $product = $null
+        try { $path = $p.Path } catch { }
+        if ($path) { try { $product = $p.MainModule.FileVersionInfo.ProductName } catch { } }
+        [pscustomobject]@{ Name = $p.ProcessName; Path = $path; Product = $(if ($product) { $product.Trim() } else { $null }); MB = $bytes / 1MB }
+    }
+    $procs = @($procs)
+    $top = @($procs | Group-Object { if ($_.Product) { $_.Product } else { $_.Name } } | ForEach-Object {
+            $mb = ($_.Group | Measure-Object MB -Sum).Sum
+            [pscustomobject]@{ Programa = $_.Name; Procesos = $_.Count; RamMB = [math]::Round($mb); Ram = (Format-CfgSize $mb) }
+        } | Sort-Object RamMB -Descending | Select-Object -First 20)
+    $byItem = @{}
+    if ($Catalog) {
+        if (-not $Programs) { $Programs = @(Get-CfgInstalledPrograms) }
+        foreach ($item in $Catalog) {
+            $d = $item.detect
+            if (-not $d) { continue }
+            $dirs = New-Object System.Collections.Generic.List[string]
+            $likes = New-Object System.Collections.Generic.List[string]
+            if ($d.PSObject.Properties['displayName']) {
+                foreach ($pat in @($d.displayName)) {
+                    $likes.Add($pat)
+                    foreach ($m in @($Programs | Where-Object { $_.DisplayName -like $pat })) {
+                        if ($m.InstallLocation -and $m.InstallLocation.Trim('"').Length -gt 3) { $dirs.Add($m.InstallLocation.Trim('"').TrimEnd('\') + '\') }
+                        elseif ($m.DisplayIcon) { $ic = ($m.DisplayIcon -split ',')[0].Trim('"'); if ($ic -match '\\') { $dirs.Add((Split-Path $ic) + '\') } }
+                    }
+                }
+            }
+            if ($d.PSObject.Properties['appx']) { foreach ($pat in @($d.appx)) { $dirs.Add("*\WindowsApps\$($pat)_*") } }
+            if ($d.PSObject.Properties['path']) { foreach ($pat in @($d.path)) { $x = [Environment]::ExpandEnvironmentVariables($pat); $dirs.Add($(if ($x -match '\.exe$') { Split-Path $x } else { $x }).TrimEnd('\') + '\') } }
+            # Directorios genéricos (Windows, Program Files...) darían falsos positivos
+            $dirs = @($dirs | Where-Object { $_ -and $_ -notmatch '^[A-Za-z]:\\(Windows|Program Files( \(x86\))?|ProgramData|Users)?\\$' } | Select-Object -Unique)
+            $match = @($procs | Where-Object {
+                    $pr = $_
+                    ($pr.Path -and @($dirs | Where-Object { if ($_ -like '*`**') { $pr.Path -like "$_*" } else { $pr.Path.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) } }).Count) -or
+                    ($pr.Product -and @($likes | Where-Object { $pr.Product -like $_ }).Count)
+                })
+            if ($match.Count) { $byItem[$item.id] = [pscustomobject]@{ MB = [math]::Round(($match | Measure-Object MB -Sum).Sum); Procesos = $match.Count } }
+        }
+    }
+    [pscustomobject]@{ TotalMB = $totalMB; FreeMB = $freeMB; UsedMB = $totalMB - $freeMB; Top = $top; ByItem = $byItem; At = (Get-Date -Format 'HH:mm') }
+}
 function New-CfgBatteryReport {
     $file = Join-Path (Get-CfgExportFolder) ('Bateria_{0}_{1}.html' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyyMMdd_HHmmss'))
     & powercfg.exe /batteryreport /output $file | Out-Null

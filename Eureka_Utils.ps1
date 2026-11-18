@@ -27,7 +27,7 @@ param(
     [switch]$SinPuntoRestauracion,
     [switch]$ListarCatalogo,
     [switch]$PostInstalacion,
-    [ValidateSet('', 'Equipo', 'Hardware', 'Software', 'Actualizaciones', 'Bloatware', 'Ajustes', 'Cuentas', 'USB', 'Diagnostico', 'Registro')][string]$Pestana = '',
+    [ValidateSet('', 'Equipo', 'Hardware', 'Software', 'Actualizaciones', 'Bloatware', 'Ajustes', 'Cuentas', 'USB', 'Drivers', 'Diagnostico', 'Registro')][string]$Pestana = '',
     [switch]$OcultarConsola,
     [string]$Captura
 )
@@ -44,10 +44,21 @@ foreach ($n in 'Instalar', 'QuitarBloatware', 'Ajustes') {
 # Archivos copiados de Internet/USB pueden estar marcados como bloqueados
 try { Get-ChildItem -Path $Root -Recurse -File -Include *.ps1, *.psm1, *.xaml, *.json -ErrorAction Stop | Unblock-File -ErrorAction SilentlyContinue } catch { }
 
-foreach ($m in Get-ChildItem (Join-Path $Root 'Modules') -Filter '*.psm1') {
-    Import-Module $m.FullName -Force -DisableNameChecking -Global
+# Seguridad: la carpeta de trabajo pasa a System32 (solo escribible por administradores) para que
+# ningún ejecutable con nombre de sistema colocado junto a Eureka_Utils se ejecute en su lugar.
+$sys32 = Join-Path $env:SystemRoot 'System32'
+Set-Location $sys32
+[Environment]::CurrentDirectory = $sys32
+
+# Seguridad: solo se cargan los módulos conocidos (un .psm1 añadido a la carpeta no se ejecuta)
+$CfgModuleNames = @('Core', 'Hardware', 'Software', 'Updates', 'Bloatware', 'Tweaks', 'Accounts', 'Domain', 'Diagnostics', 'Security', 'Drivers', 'Media', 'Profiles', 'Report')
+$unknown = @(Get-ChildItem (Join-Path $Root 'Modules') -Filter '*.psm1' | Where-Object { $CfgModuleNames -notcontains $_.BaseName })
+foreach ($m in $CfgModuleNames) {
+    $p = Join-Path $Root "Modules\$m.psm1"
+    if (Test-Path $p) { Import-Module $p -Force -DisableNameChecking -Global }
 }
 $logFile = Set-CfgEnvironment -Root $Root
+foreach ($u in $unknown) { Write-CfgLog "Módulo desconocido ignorado por seguridad: $($u.Name). Si no lo has añadido tú, elimínalo." WARN }
 
 # ------------------------------------------------------------------ listar catálogo
 if ($ListarCatalogo) {
@@ -77,11 +88,27 @@ if (-not (Test-CfgAdmin) -and -not $Captura) {
         else { $argList += "-$k"; $argList += "`"$v`"" }
     }
     try {
-        Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -Verb RunAs -ErrorAction Stop
+        Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList $argList -Verb RunAs -ErrorAction Stop
         return
     }
     catch {
         Write-CfgLog 'No se concedió la elevación: se continúa sin privilegios de administrador (la mayoría de acciones fallarán).' WARN
+    }
+}
+
+# ------------------------------------------------------------------ seguridad de la carpeta
+# Si un usuario sin privilegios puede modificar estos scripts, podría lograr que se ejecute su
+# código como administrador la próxima vez que alguien abra Eureka_Utils.
+$folderRisk = @()
+if (Test-CfgAdmin) {
+    $folderRisk = @(Test-CfgFolderSecurity -Path $Root)
+    if ($folderRisk -contains 'SIN-PERMISOS') {
+        Write-CfgLog 'Eureka_Utils se ejecuta desde una unidad sin permisos (FAT32/exFAT, normalmente un USB): guarda el USB en un lugar seguro y no lo dejes en equipos de terceros.' INFO
+        $folderRisk = @()
+    }
+    elseif ($folderRisk.Count) {
+        if ($PostInstalacion) { Protect-CfgFolder -Path $Root | Out-Null; $folderRisk = @() }
+        else { Write-CfgLog ("La carpeta {0} la pueden modificar usuarios sin privilegios ({1}). Protégela o muévela a C:\Program Files." -f $Root, ($folderRisk -join ', ')) WARN }
     }
 }
 
@@ -131,4 +158,4 @@ if ($OcultarConsola -or $PostInstalacion) {
 
 . (Join-Path $Root 'UI\I18n.ps1')
 . (Join-Path $Root 'UI\Gui.ps1')
-Show-CfgGui -Root $Root -LogFile $logFile -InitialProfile $Perfil -CapturePath $Captura -PostInstall:$PostInstalacion -Tab $Pestana
+Show-CfgGui -Root $Root -LogFile $logFile -InitialProfile $Perfil -CapturePath $Captura -PostInstall:$PostInstalacion -Tab $Pestana -FolderRisk $folderRisk

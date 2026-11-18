@@ -100,7 +100,14 @@ Write-Host ("Payload: {0} archivos, {1:N1} MB" -f @($files).Count, ((Get-Item $p
 # ---------------------------------------------------------------- compilación
 $common = @('/nologo', '/optimize+', '/platform:anycpu', '/target:winexe', "/win32icon:$ico", "/win32manifest:$(Join-Path $build 'app.manifest')",
             "/r:$fx\System.Windows.Forms.dll", "/r:$fx\System.dll")
-& $csc @common "/out:$(Join-Path $root 'Eureka_Utils.exe')" (Join-Path $build 'Launcher.cs')
+# Lista de huellas SHA-256 del código que Eureka_Utils.exe comprueba antes de ejecutar nada
+$skipDirs = '^(Build|Dist|Logs|Exports|Docs|\.git|\.github|Eureka_Utils_Datos)\\'
+$codeFiles = Get-ChildItem $root -Recurse -File -Force -Include *.ps1, *.psm1, *.xaml | Where-Object { $_.FullName.Substring($root.Length + 1) -notmatch $skipDirs } | Sort-Object FullName
+$manifest = Join-Path $obj 'manifest.txt'
+$lines = foreach ($f in $codeFiles) { '{0} {1}' -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash, $f.FullName.Substring($root.Length + 1).Replace('\', '/') }
+[IO.File]::WriteAllLines($manifest, [string[]]$lines, (New-Object Text.UTF8Encoding $false))
+Write-Host ("Lista de integridad: {0} archivos de código" -f @($lines).Count)
+& $csc @common "/resource:$manifest,manifest.txt" "/out:$(Join-Path $root 'Eureka_Utils.exe')" (Join-Path $build 'Launcher.cs')
 if ($LASTEXITCODE) { throw "Error compilando Eureka_Utils.exe ($LASTEXITCODE)" }
 & $csc @common '/define:SINGLEFILE' "/r:$fx\System.IO.Compression.dll" "/r:$fx\System.IO.Compression.FileSystem.dll" "/resource:$payload,payload.zip" "/out:$(Join-Path $dist 'Eureka_Utils_Portable.exe')" (Join-Path $build 'Launcher.cs')
 if ($LASTEXITCODE) { throw "Error compilando Eureka_Utils_Portable.exe ($LASTEXITCODE)" }

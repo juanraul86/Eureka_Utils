@@ -1,0 +1,4 @@
+# Los archivos se guardan exactamente como están, sin convertir saltos de línea.
+# Así las huellas SHA-256 que comprueba Eureka_Utils.exe coinciden en GitHub Actions,
+# en la descarga ZIP del repositorio y en una copia clonada.
+* -text

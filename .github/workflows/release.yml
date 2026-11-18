@@ -22,7 +22,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Descargar el código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Compilar los ejecutables
         shell: powershell
@@ -33,7 +33,7 @@ jobs:
 
       - name: Subir ejecutables sin firmar
         id: upload-unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Eureka_Utils-sin-firmar
           path: out/*.exe
@@ -41,7 +41,7 @@ jobs:
 
       - name: Firmar con SignPath
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@ced31329c0317e779dad2eec2a7c3bb46ea1343e # v1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -64,7 +64,7 @@ jobs:
           "SIGN_STATE=$state" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Subir ejecutables finales
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Eureka_Utils
           path: release/*.exe
@@ -77,10 +77,16 @@ jobs:
         run: |
           $ErrorActionPreference = 'Continue'
           $tag = '${{ github.ref_name }}'
+          # Notas + huellas SHA-256 para que cualquiera compruebe que el archivo descargado no se ha alterado
+          $notes = Get-Content .github\release-notes.md -Raw -Encoding UTF8
+          $rows = Get-ChildItem release\*.exe | ForEach-Object { '| `{0}` | `{1}` |' -f $_.Name, (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
+          $notes += "`n`n### Huellas SHA-256 (ejecutables $env:SIGN_STATE)`n`n| Archivo | SHA-256 |`n|---|---|`n" + ($rows -join "`n") + "`n`nComprobación en PowerShell: ``Get-FileHash .\Eureka_Utils_Portable.exe -Algorithm SHA256```n"
+          Set-Content -Path notes.md -Value $notes -Encoding UTF8
           $existing = @(gh release list --limit 100 --json tagName --jq '.[].tagName') -contains $tag
           if (-not $existing) {
-            gh release create $tag --title "Eureka_Utils $($tag.TrimStart('v'))" --notes-file .github\release-notes.md
+            gh release create $tag --title "Eureka_Utils $($tag.TrimStart('v'))" --notes-file notes.md
           }
           gh release upload $tag (Get-ChildItem release\*.exe).FullName --clobber
           if ($LASTEXITCODE -ne 0) { throw "No se pudieron subir los ejecutables a $tag" }
+          if ($existing) { gh release edit $tag --notes-file notes.md }
           "Ejecutables $env:SIGN_STATE publicados en $tag"

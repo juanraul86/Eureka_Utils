@@ -2,12 +2,14 @@
 
 Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de uso personal y profesional. Detecta el hardware (incluida la tarjeta gráfica NVIDIA/AMD/Intel), quita bloatware, instala software explicando sus dependencias y su consumo de recursos, mantiene todo actualizado con winget, aplica ajustes, configura cuentas (con verificación en dos pasos), une el equipo a Active Directory o a Microsoft Entra ID, sincroniza con Intune, diagnostica el sistema y busca malware, y crea USB de instalación de Windows 11 que dejan el equipo configurado sin intervención.
 
-**Versión 2.1 · noviembre de 2026**
+**Versión 2.2 · noviembre de 2026**
 
 ## Características
 
 - **Hardware**: detección de CPU, RAM, discos, red y GPU, con recomendaciones de controladores y comprobación de compatibilidad con Windows 11 (TPM 2.0, UEFI, arranque seguro).
-- **Software**: catálogo estilo Centro de software con dependencias, requisitos e impacto en disco y RAM antes de instalar.
+- **Software**: catálogo estilo Centro de software con dependencias, requisitos e impacto en disco y RAM antes de instalar, calculado sobre el **consumo real de RAM** de lo que ya se está ejecutando en el equipo.
+- **Drivers y BIOS**: listado de todo el hardware con su controlador (versión, fecha, firma y estado), controladores y firmware desde Windows Update, instalación desde carpeta, copia de seguridad de controladores y herramientas oficiales de Dell, HP, Lenovo e Intel. Versión y antigüedad de la BIOS con enlace al soporte del fabricante y preparación segura de la actualización (punto de restauración y BitLocker suspendido).
+- **TPM 2.0, UEFI y arranque seguro (gaming)**: comprobación de los requisitos de los antitrampas (Valorant, Call of Duty, Battlefield 6), conversión MBR → GPT con MBR2GPT, reinicio directo en la BIOS e instrucciones según el fabricante (MSI, ASUS, Gigabyte, ASRock, Dell, HP, Lenovo, Acer).
 - **Actualizaciones**: `winget upgrade` al abrir, con opción de actualizar todo o solo lo seleccionado. Después se **comprueba el resultado** y, si una aplicación no se ha actualizado, se avisa y se ofrece su **enlace de descarga manual**.
 - **Bloatware**: retirada de apps preinstaladas con indicación del riesgo (bajo, medio, alto) y posibilidad de reinstalarlas.
 - **Ajustes de Windows**: energía, gaming, explorador, privacidad, seguridad y administración.
@@ -19,6 +21,8 @@ Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de
 - **USB de instalación**: formatea e instala Windows 11 y deja el equipo configurado con el perfil elegido.
 - **Idiomas y tema**: interfaz en español, inglés, francés, portugués, euskera, catalán, valenciano y gallego, en modo claro u oscuro.
 - **Informe**: exportación del estado del equipo en HTML.
+- **Privacidad**: los registros e informes se guardan solo en el equipo; el botón **Borrar registros e informes** (pestaña Registro) los elimina.
+- **Seguridad**: comprobación de integridad SHA-256 de los scripts en el lanzador, protección de la carpeta contra modificaciones sin permisos de administrador, instaladores locales verificados por hash o firma Authenticode y huellas SHA-256 de cada release.
 
 ## Requisitos
 

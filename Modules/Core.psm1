@@ -29,6 +29,13 @@ function Set-CfgEnvironment {
 }
 
 function Get-CfgRoot    { return $script:CfgRoot }
+
+function Get-CfgSystemExe {
+    <# Ruta completa de una herramienta de Windows (evita ejecutar un archivo homónimo de la carpeta actual). #>
+    param([Parameter(Mandatory)][string]$Name)
+    if ($Name -ieq 'explorer.exe') { return (Join-Path $env:SystemRoot 'explorer.exe') }
+    return (Join-Path $env:SystemRoot "System32\$Name")
+}
 function Get-CfgLogFile { return $script:LogFile }
 
 function Write-CfgLog {
@@ -75,6 +82,23 @@ function Get-CfgExportFolder {
     return $d
 }
 
+function Clear-CfgUserData {
+    <# Privacidad: borra los registros (salvo el de la sesión actual) y todo lo exportado (informes,
+       hash de Autopilot, diagnósticos MDM, copias de controladores), que contienen datos del equipo. #>
+    param([string]$KeepLog)
+    $n = 0
+    $logDir = if ($KeepLog) { Split-Path $KeepLog } else { Join-Path (Get-CfgDataRoot) 'Logs' }
+    foreach ($d in @($logDir, (Join-Path (Get-CfgDataRoot) 'Exports'))) {
+        if (-not (Test-Path $d)) { continue }
+        foreach ($it in @(Get-ChildItem -LiteralPath $d -Force -ErrorAction SilentlyContinue)) {
+            if ($KeepLog -and $it.FullName -eq $KeepLog) { continue }
+            try { Remove-Item -LiteralPath $it.FullName -Recurse -Force -ErrorAction Stop; $n++ } catch { Write-CfgLog "No se pudo borrar $($it.Name): $($_.Exception.Message)" WARN }
+        }
+    }
+    Write-CfgLog "Privacidad: $n registros e informes borrados (se conserva el registro de esta sesión)." OK
+    return $n
+}
+
 function Format-CfgSize {
     param([double]$MB)
     if ($MB -ge 1024) { return ('{0:N1} GB' -f ($MB / 1024)) }
@@ -114,6 +138,9 @@ function Get-CfgInstalledPrograms {
                     UninstallString      = $_.UninstallString
                     QuietUninstallString = $_.QuietUninstallString
                     KeyName              = $_.PSChildName
+                    InstallLocation      = $(if ($_.PSObject.Properties['InstallLocation']) { [string]$_.InstallLocation } else { '' })
+                    DisplayIcon          = $(if ($_.PSObject.Properties['DisplayIcon']) { [string]$_.DisplayIcon } else { '' })
+                    Hive                 = $(if ($p -like 'HKCU:*') { 'HKCU' } else { 'HKLM' })
                 }
             }
     }
@@ -134,6 +161,12 @@ function Get-CfgAppxPackages {
 function Invoke-CfgRegistryUninstall {
     <# Desinstala un programa Win32 usando su cadena de desinstalación silenciosa o MSI. #>
     param([Parameter(Mandatory)]$Program)
+    # Seguridad: las entradas de HKCU las puede crear cualquier usuario. Ejecutarlas con permisos de
+    # administrador permitiría a un usuario estándar lanzar su propio comando como administrador.
+    if ($Program.Hive -eq 'HKCU' -and (Test-CfgAdmin)) {
+        Write-CfgLog "'$($Program.DisplayName)' está registrado solo para un usuario (HKCU): por seguridad no se ejecuta su desinstalador con permisos de administrador. Desinstálalo desde la sesión de ese usuario (Configuración > Aplicaciones)." WARN
+        return $false
+    }
     $cmd = $null
     if ($Program.QuietUninstallString) { $cmd = $Program.QuietUninstallString }
     elseif ($Program.KeyName -match '^\{[0-9A-Fa-f\-]{36}\}$') { $cmd = "msiexec.exe /x $($Program.KeyName) /qn /norestart" }
@@ -318,6 +351,38 @@ function Restart-CfgComputerDelayed {
     param([int]$Seconds = 60)
     Write-CfgLog "El equipo se reiniciará en $Seconds segundos (cancelar con: shutdown /a)." WARN
     & shutdown.exe /r /t $Seconds /c "Eureka_Utils: reinicio para completar los cambios" /d p:4:1 | Out-Null
+}
+
+# ---------------------------------------------------------------- permisos de la carpeta
+
+function Test-CfgFolderSecurity {
+    <# Devuelve las identidades sin privilegios que pueden modificar la carpeta (vacío = segura).
+       En unidades sin permisos (FAT32/exFAT, p. ej. un USB) devuelve 'SIN-PERMISOS'. #>
+    param([Parameter(Mandatory)][string]$Path)
+    try {
+        $drive = [IO.Path]::GetPathRoot((Resolve-Path $Path).Path)
+        if ($drive -like '\\*') { return @() }   # recurso de red: los permisos los controla el servidor
+        $fs = (Get-Volume -DriveLetter $drive.Substring(0, 1) -ErrorAction Stop).FileSystem
+        if ($fs -notin @('NTFS', 'ReFS')) { return @('SIN-PERMISOS') }
+    }
+    catch { }
+    $weak = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-7')
+    $write = [Security.AccessControl.FileSystemRights]'Write, Modify, FullControl, CreateFiles, AppendData, WriteData, ChangePermissions, TakeOwnership, Delete'
+    $out = foreach ($a in (Get-Acl -Path $Path).Access) {
+        if ($a.AccessControlType -ne 'Allow') { continue }
+        try { $sid = $a.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { continue }
+        if ($weak -contains $sid -and ($a.FileSystemRights -band $write)) { [string]$a.IdentityReference }
+    }
+    return @($out | Select-Object -Unique)
+}
+
+function Protect-CfgFolder {
+    <# Deja la carpeta modificable solo por Administradores y SYSTEM (los usuarios pueden leer y ejecutar). #>
+    param([Parameter(Mandatory)][string]$Path)
+    & (Get-CfgSystemExe 'icacls.exe') $Path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /T /C /Q | Out-Null
+    $ok = ($LASTEXITCODE -eq 0) -and -not @(Test-CfgFolderSecurity -Path $Path).Count
+    Write-CfgLog $(if ($ok) { "Carpeta protegida: solo administradores y SYSTEM pueden modificar $Path." } else { "No se pudieron ajustar los permisos de $Path (código $LASTEXITCODE)." }) $(if ($ok) { 'OK' } else { 'WARN' })
+    return $ok
 }
 
 Export-ModuleMember -Function *

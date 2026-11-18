@@ -9,7 +9,8 @@ $script:TaskButtons = @(
     'BtnDomCheck', 'BtnDomJoin', 'BtnRename', 'BtnDomLeave', 'BtnGpUpdate', 'BtnIntuneSync', 'BtnHybridJoin', 'BtnMdmEnroll',
     'BtnMdmDiag', 'BtnAutopilot', 'BtnBattery', 'BtnUsbReadIso', 'BtnUsbCreate', 'BtnUsbSaveXml',
     'BtnDiagRun', 'BtnSfc', 'BtnDismScan', 'BtnDismRestore', 'BtnChkdsk', 'BtnEnergy', 'BtnDiagEvents',
-    'BtnSecRun', 'BtnSigUpdate', 'BtnScanQuick', 'BtnScanFull', 'BtnScanFolder', 'BtnScanOffline', 'BtnMsert'
+    'BtnSecRun', 'BtnSigUpdate', 'BtnScanQuick', 'BtnScanFull', 'BtnScanFolder', 'BtnScanOffline', 'BtnMsert',
+    'BtnMemRefresh', 'BtnDrvList', 'BtnDrvScan', 'BtnDrvInstall', 'BtnDrvFolder', 'BtnDrvBackup', 'BtnFwCheck', 'BtnFwPrepare', 'BtnMbrValidate', 'BtnMbrConvert', 'BtnClearData'
 )
 
 $script:Palettes = @{
@@ -205,6 +206,7 @@ $script:DetectScript = {
         Bw     = @(Get-CfgBloatwareState -Catalog $bw)
         Tw     = @(Get-CfgTweaks)
         Users  = @(Get-CfgLocalUsers)
+        Mem    = Get-CfgMemoryUsage -Catalog $sw
     }
     $present = @($r.Bw | Where-Object { $_.Present }).Count
     $inst = @($r.Sw.Values | Where-Object { $_ }).Count
@@ -301,6 +303,18 @@ function Set-CfgDetectionResult {
         Update-CfgTwSummary
     }
     if ($R.Users) { Set-CfgUserList $R.Users }
+    if ($R.Mem) { Set-CfgMemoryView $R.Mem }
+}
+
+function Set-CfgMemoryView {
+    param($Mem)
+    if (-not $Mem) { return }
+    $script:G.Mem = $Mem
+    $u = $script:Ui
+    $u.HwMemSummary.Text = (T 'En uso ahora: {0} de {1} ({2:N0} %) · libres {3} · medido a las {4}.') -f (Format-CfgSize $Mem.UsedMB), (Format-CfgSize $Mem.TotalMB), (100 * $Mem.UsedMB / [math]::Max(1, $Mem.TotalMB)), (Format-CfgSize $Mem.FreeMB), $Mem.At
+    $u.HwMemGrid.ItemsSource = @($Mem.Top | ForEach-Object { [pscustomobject]@{ Programa = (Get-CfgAnon $_.Programa); Procesos = $_.Procesos; Ram = $_.Ram } })
+    Update-CfgSwImpact
+    if ($script:G.DetailId) { Show-CfgSwDetail $script:G.DetailId }
 }
 
 function Set-CfgUserList {
@@ -377,6 +391,18 @@ function Update-CfgSwImpact {
             if ($imp.RamMB -gt $sys.RamTotalMB * 0.5) { $lines += T '⚠ Usadas a la vez consumirían más de la mitad de la RAM del equipo.' }
         }
     }
+    # Consumo real: lo que ya está en marcha en este equipo + lo que añadiría la selección
+    $mem = $script:G.Mem
+    if ($mem) {
+        $after = $mem.UsedMB + $imp.RamMB
+        $pctNow = 100 * $mem.UsedMB / [math]::Max(1, $mem.TotalMB)
+        $pctAfter = 100 * $after / [math]::Max(1, $mem.TotalMB)
+        $lines += (T 'RAM real ahora: {0} de {1} ({2:N0} %) · con la selección abierta: ~{3} ({4:N0} %)') -f (Format-CfgSize $mem.UsedMB), (Format-CfgSize $mem.TotalMB), $pctNow, (Format-CfgSize $after), $pctAfter
+        $running = @($ids | Where-Object { $mem.ByItem[$_] } | ForEach-Object { '{0} {1}' -f $script:G.SwById[$_].name, (Format-CfgSize $mem.ByItem[$_].MB) })
+        if ($running.Count) { $lines += (T 'Ya en ejecución (consumo real): {0}') -f ($running -join ', ') }
+        if ($pctAfter -ge 90) { $lines += T '⚠ Con la selección en marcha el equipo se quedaría casi sin memoria libre: cierra programas o amplía la RAM.' }
+        elseif ($pctAfter -ge 75) { $lines += T '⚠ La memoria quedaría por encima del 75 %: puede notarse lentitud con muchas aplicaciones abiertas.' }
+    }
     $script:Ui.SwImpactSummary.Text = $lines -join "`n"
 }
 
@@ -413,6 +439,7 @@ function Show-CfgSwDetail {
     $txt = @(
         ('{0}: ~{1}' -f (T 'Disco'), (Format-CfgSize $im.diskMB))
         ('{0}: {1}' -f (T 'RAM típica en uso'), $(if ($im.ramMB) { '~' + (Format-CfgSize $im.ramMB) + $ramPct } else { T 'insignificante' }))
+        ('{0}: {1}' -f (T 'Consumo real ahora'), $(if ($script:G.Mem -and $script:G.Mem.ByItem[$Id]) { (T '{0} en {1} procesos (medido a las {2})') -f (Format-CfgSize $script:G.Mem.ByItem[$Id].MB), $script:G.Mem.ByItem[$Id].Procesos, $script:G.Mem.At } elseif ($state) { T 'no se está ejecutando' } else { T 'no instalada' }))
         ('CPU: {0}' -f (T $im.cpu))
         ('{0}: {1}' -f (T 'Se inicia con Windows'), $(if ($im.startup) { $yes } else { $no }))
         ('{0}: {1}' -f (T 'Servicios que añade'), $(if (@($im.services).Count) { $im.services -join ', ' } else { T 'ninguno' }))
@@ -438,7 +465,7 @@ function Show-CfgInstallFailures {
     $linkText = T 'Descargar manualmente'
     if ($Kind -eq 'update') {
         $script:Ui.UpFailGrid.ItemsSource = @($f | ForEach-Object {
-                [pscustomobject]@{ Name = $_.Name; Version = $_.Version; Available = $_.Available; Reason = (T $_.Reason); Link = $_.Link; LinkText = $linkText }
+                [pscustomobject]@{ Name = $_.Name; Version = $_.Version; Available = $_.Available; Reason = $(if ($_.PSObject.Properties["Sha256"] -and $_.Sha256) { "{0} {1}: {2}" -f (T $_.Reason), (T "Comprueba que el instalador descargado tiene esta huella SHA-256"), $_.Sha256 } else { T $_.Reason }); Link = $_.Link; LinkText = $linkText }
             })
         $script:Ui.UpFailPanel.Visibility = $(if ($f.Count) { 'Visible' } else { 'Collapsed' })
     }
@@ -447,7 +474,7 @@ function Show-CfgInstallFailures {
     $title = if ($Kind -eq 'update') { T 'No se ha podido instalar la actualización de:' } else { T 'No se ha podido instalar:' }
     $msg = "$title`n`n$list`n`n" + (T 'Puedes descargarlo e instalarlo manualmente desde la web del fabricante. ¿Abrir ahora las páginas de descarga?')
     if ((Show-CfgMessage -Text $msg -Icon 'Warning' -Buttons 'YesNo') -eq 'Yes') {
-        foreach ($x in $f) { if ($x.Link) { Write-CfgLog "Abriendo descarga manual de $($x.Name): $($x.Link)"; Start-Process ([string]$x.Link) } }
+        foreach ($x in $f) { if ($x.Link) { Write-CfgLog ("Abriendo descarga manual de {0}: {1}{2}" -f $x.Name, $x.Link, $(if ($x.PSObject.Properties["Sha256"] -and $x.Sha256) { " · SHA-256 esperado: " + $x.Sha256 } else { "" })); Start-Process ([string]$x.Link) } }
     }
 }
 
@@ -664,7 +691,7 @@ function Start-CfgPostInstall {
     $u.PostBannerText.Text = "Configuración posterior a la instalación de Windows · perfil '$($pi.profile)'. No apagues el equipo; puedes seguir el progreso en la pestaña Registro."
     for ($k = 0; $k -lt $script:G.Profiles.Count; $k++) { if ($script:G.Profiles[$k].name -eq $pi.profile) { $u.ProfileCombo.SelectedIndex = $k } }
     if (-not $pi.autoApply) { Write-CfgLog 'Post-instalación: revisa el perfil seleccionado y pulsa "Aplicar perfil".'; return }
-    $u.Tabs.SelectedIndex = 9
+    $u.Tabs.SelectedIndex = 10
     Start-CfgTask -Title "Post-instalación: perfil $($pi.profile)" -Arguments @($pi.profile) -Script { param($n) Invoke-CfgProfile -Name $n -PostInstall; Complete-CfgPostInstall } -OnComplete {
         $p = $script:G.PostInstall
         if ($p.enroll -in @('mdm', 'aadj') -and $p.upn) { Start-CfgWorkAccountFlow -Mode $p.enroll -Upn $p.upn }
@@ -698,6 +725,61 @@ function Initialize-CfgDiagTab {
         $b.Add_Click({ param($s, $e) Write-CfgLog "Abriendo $($s.Tag)"; Start-Process ([string]$s.Tag) })
         [void]$u.RescuePanel.Children.Add($b)
     }
+}
+
+# ------------------------------------------------------------------ drivers y BIOS
+
+function Initialize-CfgDriversTab {
+    $script:DrvUpTable = New-CfgDataTable 'DriverUpdates' @('UpdateId', 'Titulo', 'Clase', 'Fecha', 'Tamano') @('Selected', 'Firmware')
+    $script:Ui.DrvUpGrid.ItemsSource = $script:DrvUpTable.DefaultView
+}
+
+function Update-CfgDeviceView {
+    $all = @($script:G.Devices)
+    if (-not $all.Count) { return }
+    $view = if ($script:Ui.DrvOnlyProblems.IsChecked) { @($all | Where-Object { $_.Problema }) } else { $all }
+    $script:Ui.DrvGrid.ItemsSource = @($view | ForEach-Object { [pscustomobject]@{ Clase = $_.Clase; Dispositivo = $_.Dispositivo; Fabricante = $_.Fabricante; Version = $_.Version; Fecha = $_.Fecha; Firmado = $(if ($_.Firmado) { T $_.Firmado } else { '' }); Estado = $(if ($_.Estado -like 'Error*') { $_.Estado } else { T $_.Estado }) } })
+    $problems = @($all | Where-Object { $_.Problema }).Count
+    $unsigned = @($all | Where-Object { $_.Firmado -eq 'No' }).Count
+    $limit = (Get-Date).AddYears(-3).ToString('yyyy-MM-dd')
+    $old = @($all | Where-Object { $_.Fecha -and $_.Fecha -lt $limit -and $_.Fabricante -notmatch '^(Microsoft|\(Standard|\(Est)' }).Count
+    $t = (T '{0} dispositivos · {1} con problemas · {2} controladores sin firmar · {3} controladores de terceros con más de 3 años.') -f $all.Count, $problems, $unsigned, $old
+    if ($problems) { $t += ' ' + (T "Los dispositivos con error aparecen primero: prueba 'Buscar en Windows Update' o la herramienta del fabricante.") }
+    $script:Ui.DrvSummary.Text = $t
+}
+
+function Set-CfgDriverUpdates {
+    param($List)
+    $script:DrvUpTable.Rows.Clear()
+    foreach ($d in @($List | Where-Object { $_ -and $_.PSObject.Properties['UpdateId'] })) {
+        $r = $script:DrvUpTable.NewRow()
+        $r['UpdateId'] = $d.UpdateId; $r['Titulo'] = $(if ($d.Firmware) { "[BIOS/firmware] $($d.Titulo)" } else { $d.Titulo }); $r['Clase'] = $d.Clase
+        $r['Fecha'] = $d.Fecha; $r['Tamano'] = $d.Tamano; $r['Firmware'] = [bool]$d.Firmware; $r['Selected'] = -not $d.Firmware
+        $script:DrvUpTable.Rows.Add($r)
+    }
+}
+
+function Set-CfgFirmwareView {
+    param($R)
+    if (-not $R -or -not $R.Fw) { return }
+    $fw = $R.Fw
+    $script:G.Fw = $fw
+    $u = $script:Ui
+    $months = if ($null -ne $fw.BiosAgeDays) { [int]($fw.BiosAgeDays / 30) } else { $null }
+    $disp = [ordered]@{
+        'Fabricante (soporte)' = $(if ($fw.VendorText) { Get-CfgAnon ("$($fw.VendorText) · $($fw.Model)") } else { '—' })
+        'BIOS'                 = '{0} {1}' -f $fw.BiosVendor, $fw.BiosVersion
+        'Fecha de la BIOS'     = $(if ($fw.BiosDate) { '{0} ({1})' -f $fw.BiosDate, ((T 'hace {0} meses') -f $months) } else { '—' })
+        'Modo de firmware'     = $(if ($fw.IsUefi) { 'UEFI' } else { T 'BIOS heredada (Legacy/CSM)' })
+        'Arranque seguro'      = $(if ($fw.SecureBoot) { T 'Activado' } elseif ($fw.IsUefi) { T 'Desactivado' } else { T 'No disponible (modo BIOS heredada)' })
+        'Disco del sistema'    = $(if ($fw.DiskStyle) { $fw.DiskStyle } else { '—' })
+        'SMBIOS'               = $fw.Smbios
+    }
+    $u.FwInfoList.ItemsSource = @(ConvertTo-CfgKeyValue $disp)
+    $u.FwAdvice.Text = $(if ($null -eq $months) { '' } elseif ($months -ge 24) { (T '⚠ La BIOS tiene más de 2 años ({0} meses). Los fabricantes publican versiones con parches de seguridad, compatibilidad con nuevos procesadores y memoria, y estabilidad: revisa si hay una más reciente.') -f $months } elseif ($months -ge 12) { T 'La BIOS tiene más de un año: conviene comprobar si hay una versión más reciente.' } else { T '✓ La BIOS es reciente (menos de un año).' })
+    $u.GameChecks.ItemsSource = @($R.Checks | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Comprobacion = (T $_.Comprobacion); Resultado = (T $_.Resultado); Detalle = (T $_.Detalle) } })
+    $u.FwGuide.Text = (@($R.Guide) | ForEach-Object { T $_ }) -join ' '
+    $u.BtnMbrConvert.IsEnabled = ($fw.DiskStyle -eq 'MBR')
 }
 
 # ------------------------------------------------------------------ idioma
@@ -752,7 +834,7 @@ function Save-CfgCaptures {
         })
     $script:Ui.LogBox.Text = & $anon $script:Ui.LogBox.Text
     $script:Ui.LogPath.Text = '...\Eureka_Utils\Logs\Eureka_Utils_PC-EJEMPLO.log'
-    $names = @('01-equipo', '02-hardware', '03-software', '04-actualizaciones', '05-bloatware', '06-ajustes', '07-cuentas-dominio', '08-instalar-windows', '09-diagnostico', '10-registro')
+    $names = @('01-equipo', '02-hardware', '03-software', '04-actualizaciones', '05-bloatware', '06-ajustes', '07-cuentas-dominio', '08-instalar-windows', '09-drivers-bios', '10-diagnostico', '11-registro')
     # Ejemplo ilustrativo para la pestaña USB
     $u = $script:Ui
     if (-not $script:G.Iso) {
@@ -766,6 +848,13 @@ function Save-CfgCaptures {
     }
     for ($k = 0; $k -lt $script:G.Profiles.Count; $k++) { if ($script:G.Profiles[$k].name -eq 'Gaming + Streaming') { $u.ProfileCombo.SelectedIndex = $k } }
     $u.DomChecks.ItemsSource = $null
+    # Pestaña Drivers y BIOS con datos reales (solo lectura)
+    try {
+        $fwi = Get-CfgFirmwareInfo
+        Set-CfgFirmwareView @{ Fw = $fwi; Checks = @(Test-CfgGamingReadiness -Fw $fwi); Guide = @(Get-CfgFirmwareGuide -Fw $fwi -AsParts) }
+        $script:G.Devices = @(Get-CfgDevices); Update-CfgDeviceView
+    }
+    catch { Write-CfgLog "Captura de Drivers y BIOS: $($_.Exception.Message)" WARN }
     for ($i = 0; $i -lt $names.Count; $i++) {
         $u.Tabs.SelectedIndex = $i
         if ($i -eq 3) { Show-CfgInstallFailures -Kind 'update' -NoDialog -Failures @([pscustomobject]@{ Name = '7-Zip (ejemplo)'; Version = '24.08'; Available = '26.06'; Reason = 'La aplicación sigue con una actualización pendiente después de ejecutar el instalador.'; Link = 'https://www.7-zip.org/' }) }
@@ -773,9 +862,9 @@ function Save-CfgCaptures {
         & $save "light-$($names[$i])"
     }
     Set-CfgTheme 'Dark'
-    foreach ($i in 0, 1, 2, 7, 8) { $u.Tabs.SelectedIndex = $i; & $save "dark-$($names[$i])" }
+    foreach ($i in 0, 1, 2, 7, 8, 9) { $u.Tabs.SelectedIndex = $i; & $save "dark-$($names[$i])" }
     Set-CfgTheme 'Light'
-    foreach ($x in @(@('eu', 0, 'idioma-euskera-equipo'), @('ca', 2, 'idioma-catala-software'), @('ca-valencia', 3, 'idioma-valencia-actualitzacions'), @('gl', 8, 'idioma-galego-diagnostico'), @('en', 1, 'idioma-english-hardware'))) {
+    foreach ($x in @(@('eu', 0, 'idioma-euskera-equipo'), @('ca', 2, 'idioma-catala-software'), @('ca-valencia', 3, 'idioma-valencia-actualitzacions'), @('gl', 9, 'idioma-galego-diagnostico'), @('en', 1, 'idioma-english-hardware'))) {
         Set-CfgLanguage $x[0] -NoSave
         $u.LangCombo.SelectedItem = ($script:Languages | Where-Object { $_.Code -eq $x[0] } | Select-Object -First 1)
         $u.Tabs.SelectedIndex = $x[1]
@@ -787,7 +876,7 @@ function Save-CfgCaptures {
 # ------------------------------------------------------------------ ventana principal
 
 function Show-CfgGui {
-    param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$LogFile, [string]$InitialProfile, [string]$CapturePath, [switch]$PostInstall, [string]$Tab)
+    param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$LogFile, [string]$InitialProfile, [string]$CapturePath, [switch]$PostInstall, [string]$Tab, [string[]]$FolderRisk)
 
     Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Data
     try {
@@ -799,7 +888,7 @@ function Show-CfgGui {
         Root        = $Root
         LogFile     = $LogFile
         Queue       = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-        Modules     = @(Get-ChildItem (Join-Path $Root 'Modules') -Filter '*.psm1' | ForEach-Object { $_.FullName })
+        Modules     = @($CfgModuleNames | ForEach-Object { Join-Path $Root "Modules\$_.psm1" } | Where-Object { Test-Path $_ })
         Job         = $null
         SwCatalog   = @(Get-CfgSoftwareCatalog)
         SwById      = @{}
@@ -813,6 +902,7 @@ function Show-CfgGui {
         Theme       = 'System'
         CapturePath = $CapturePath
         PostInstall = $null
+        FolderRisk  = @($FolderRisk | Where-Object { $_ })
     }
     foreach ($i in $script:G.SwCatalog) { $script:G.SwById[$i.id] = $i }
     if ($PostInstall) { $script:G.PostInstall = Get-CfgPostInstall }
@@ -867,7 +957,7 @@ function Show-CfgGui {
     $ui.ProfileCombo.Add_SelectionChanged({ Update-CfgProfileDesc })
     $ui.BtnRefresh.Add_Click({ Start-CfgDetection })
     $ui.BtnRestorePoint.Add_Click({ Start-CfgTask -Title 'Punto de restauración' -Script { New-CfgRestorePoint | Out-Null } })
-    $ui.BtnOpenExports.Add_Click({ Start-Process explorer.exe (Get-CfgExportFolder) })
+    $ui.BtnOpenExports.Add_Click({ Start-Process (Get-CfgSystemExe "explorer.exe") (Get-CfgExportFolder) })
     $ui.BtnReport.Add_Click({
             Start-CfgTask -Title 'Informe del equipo' -Script { New-CfgComputerReport -IncludeUpdates } -OnComplete {
                 param($out) $r = @($out | Where-Object { $_.Id -eq 'report' }) | Select-Object -First 1; if ($r -and $r.Success) { Start-Process $r.Message }
@@ -891,7 +981,7 @@ function Show-CfgGui {
     $ui.BtnBattery.Add_Click({
             Start-CfgTask -Title 'Informe de batería' -Script { New-CfgBatteryReport } -OnComplete { param($out) if ($out -and $out[0].Success) { Start-Process $out[0].Message } }
         })
-    $ui.BtnDevMgr.Add_Click({ Start-Process devmgmt.msc })
+    $ui.BtnDevMgr.Add_Click({ Start-CfgConsole -Id "devmgmt.msc" })
     $ui.BtnOptionalUpdates.Add_Click({ Start-Process 'ms-settings:windowsupdate-optionalupdates' })
 
     # ---------------- Software
@@ -1048,10 +1138,10 @@ function Show-CfgGui {
     $ui.BtnIntuneSync.Add_Click({ Start-CfgTask -Title 'Sincronización Intune' -Script { Invoke-CfgIntuneSync } })
     $ui.BtnHybridJoin.Add_Click({ Start-CfgTask -Title 'Unión híbrida' -Script { Invoke-CfgHybridJoin } })
     $ui.BtnMdmEnroll.Add_Click({ Start-CfgTask -Title 'Inscripción MDM' -Script { Invoke-CfgMdmAutoEnroll } })
-    $ui.BtnMdmDiag.Add_Click({ Start-CfgTask -Title 'Diagnóstico MDM' -Script { New-CfgMdmDiagnostics } -OnComplete { Start-Process explorer.exe (Get-CfgExportFolder) } })
+    $ui.BtnMdmDiag.Add_Click({ Start-CfgTask -Title 'Diagnóstico MDM' -Script { New-CfgMdmDiagnostics } -OnComplete { Start-Process (Get-CfgSystemExe "explorer.exe") (Get-CfgExportFolder) } })
     $ui.BtnAutopilot.Add_Click({
             Start-CfgTask -Title 'Hash de Autopilot' -Arguments @($script:Ui.ApGroupTag.Text.Trim()) -Script { param($T) Export-CfgAutopilotHash -GroupTag $T } -OnComplete {
-                param($out) if ($out -and $out[0].Success) { Start-Process explorer.exe "/select,`"$($out[0].Message)`"" }
+                param($out) if ($out -and $out[0].Success) { Start-Process (Get-CfgSystemExe "explorer.exe") "/select,`"$($out[0].Message)`"" }
             }
         })
     $ui.BtnEntraJoin.Add_Click({ Start-Process 'ms-settings:workplace' })
@@ -1103,7 +1193,7 @@ function Show-CfgGui {
                 $dir = Join-Path (Split-Path $P) 'sources\$OEM$\$1\Eureka_Utils'
                 Copy-CfgToolkit -Destination $dir -PostInstall $PI
                 Write-CfgLog "Eureka_Utils copiado a $dir (cópialo con la misma ruta a tu USB)." OK
-            } -OnComplete { Start-Process explorer.exe $script:G.XmlTarget }
+            } -OnComplete { Start-Process (Get-CfgSystemExe "explorer.exe") $script:G.XmlTarget }
         })
     $ui.BtnUsbCreate.Add_Click({
             $s = Test-CfgUsbForm
@@ -1142,8 +1232,8 @@ function Show-CfgGui {
     $ui.BtnMemTest.Add_Click({
             if (Confirm-CfgAction (T 'El diagnóstico de memoria de Windows se ejecuta al reiniciar. Se abrirá para que elijas reiniciar ahora o en el próximo arranque. ¿Continuar?')) { Start-Process "$env:SystemRoot\System32\mdsched.exe" }
         })
-    $ui.BtnReliability.Add_Click({ Start-Process perfmon.exe -ArgumentList '/rel' })
-    $ui.BtnPerfReport.Add_Click({ Start-Process perfmon.exe -ArgumentList '/report' })
+    $ui.BtnReliability.Add_Click({ Start-Process (Get-CfgSystemExe "perfmon.exe") -ArgumentList '/rel' })
+    $ui.BtnPerfReport.Add_Click({ Start-Process (Get-CfgSystemExe "perfmon.exe") -ArgumentList '/report' })
     $ui.BtnSecRun.Add_Click({
             Start-CfgTask -Title (T 'Comprobar seguridad') -Script { @{ C = @(Get-CfgSecurityStatus); T = @(Get-CfgThreats) } } -OnComplete {
                 param($out) $r = $out[0].psobject.BaseObject; $script:Ui.SecChecks.ItemsSource = @(ConvertTo-CfgCheckView $r.C); $script:Ui.SecThreats.ItemsSource = @($r.T)
@@ -1169,9 +1259,97 @@ function Show-CfgGui {
     $ui.BtnMsert.Add_Click({ Start-CfgTask -Title 'Microsoft Safety Scanner' -Script { Get-CfgSafetyScanner -Run } })
     Initialize-CfgDiagTab
 
+    # ---------------- Hardware: memoria
+    $ui.BtnMemRefresh.Add_Click({
+            Start-CfgTask -Title (T 'Midiendo el uso de memoria') -Script { Get-CfgMemoryUsage -Catalog (Get-CfgSoftwareCatalog) } -OnComplete { param($out) if ($out) { Set-CfgMemoryView $out[0] } }
+        })
+
+    # ---------------- Drivers y BIOS
+    Initialize-CfgDriversTab
+    $ui.BtnDrvList.Add_Click({
+            Start-CfgTask -Title (T 'Listando hardware y controladores') -Script { Get-CfgDevices } -OnComplete { param($out) $script:G.Devices = @($out | Where-Object { $_ }); Update-CfgDeviceView }
+        })
+    $ui.DrvOnlyProblems.Add_Click({ Update-CfgDeviceView })
+    $ui.BtnDrvExport.Add_Click({
+            if (-not @($script:G.Devices).Count) { Show-CfgMessage "Primero pulsa 'Listar todo el hardware'." | Out-Null; return }
+            $p = Join-Path (Get-CfgExportFolder) ('Hardware_{0}_{1}.csv' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyyMMdd_HHmmss'))
+            $script:G.Devices | Select-Object Clase, Dispositivo, Fabricante, Version, Fecha, Firmado, Estado | Export-Csv -Path $p -NoTypeInformation -Encoding UTF8 -Delimiter ';'
+            Write-CfgLog "Lista de hardware exportada a $p" OK
+            Start-Process (Get-CfgSystemExe 'explorer.exe') "/select,`"$p`""
+        })
+    $ui.BtnDrvScan.Add_Click({
+            Start-CfgTask -Title (T 'Buscando controladores en Windows Update') -Script { Find-CfgDriverUpdates } -OnComplete {
+                param($out) Set-CfgDriverUpdates @($out); if (-not $script:DrvUpTable.Rows.Count) { $script:Ui.StatusText.Text = T 'No hay controladores pendientes en Windows Update.' }
+            }
+        })
+    $ui.BtnDrvInstall.Add_Click({
+            [void]$script:Ui.DrvUpGrid.CommitEdit()
+            $ids = Get-CfgSelectedIds $script:DrvUpTable 'UpdateId'
+            if (-not $ids.Count) { Show-CfgMessage "Pulsa 'Buscar en Windows Update' y marca los controladores a instalar." | Out-Null; return }
+            $fw = @($script:DrvUpTable.Rows | Where-Object { $_['Selected'] -and $_['Firmware'] }).Count
+            $msg = (T '¿Instalar {0} controladores desde Windows Update?') -f $ids.Count
+            if ($fw) { $msg += "`n`n" + (T 'Incluye una actualización de BIOS/firmware: conecta el cargador, no apagues el equipo durante el reinicio y, si usas BitLocker, pulsa antes "Preparar actualización de BIOS".') }
+            if (-not (Confirm-CfgAction $msg)) { return }
+            Start-CfgTask -Title (T 'Instalando controladores') -Arguments (, $ids) -Script { param($Ids) Install-CfgDriverUpdates -UpdateIds $Ids } -OnComplete { $script:Ui.BtnDrvScan.RaiseEvent((New-Object System.Windows.RoutedEventArgs ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) }
+        })
+    $ui.BtnDrvFolder.Add_Click({
+            Add-Type -AssemblyName System.Windows.Forms
+            $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+            $dlg.Description = T 'Elige la carpeta con los controladores (.inf) descargados del fabricante o de una copia de seguridad'
+            if ($dlg.ShowDialog() -ne 'OK') { return }
+            if (-not (Get-ChildItem -LiteralPath $dlg.SelectedPath -Filter *.inf -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) { Show-CfgMessage 'La carpeta no contiene archivos .inf. Si el fabricante te dio un .exe, ejecútalo directamente.' 'Warning' | Out-Null; return }
+            Start-CfgTask -Title (T 'Instalando controladores desde carpeta') -Arguments @($dlg.SelectedPath) -Script { param($P) Install-CfgDriverFolder -Path $P }
+        })
+    $ui.BtnDrvBackup.Add_Click({
+            Start-CfgTask -Title (T 'Copia de seguridad de controladores') -Script { Export-CfgDriverBackup } -OnComplete { param($out) $r = @($out | Where-Object { $_.Id -eq 'drvbackup' -and $_.Success }) | Select-Object -First 1; if ($r) { Start-Process (Get-CfgSystemExe 'explorer.exe') $r.Message } }
+        })
+    $ui.BtnDrvOem.Add_Click({
+            $fw = $script:G.Fw
+            if (-not $fw) { Show-CfgMessage "Primero pulsa 'Comprobar BIOS y requisitos' para identificar el fabricante." | Out-Null; return }
+            $ids = @($script:G.SwCatalog | Where-Object { $_.PSObject.Properties['oemVendor'] -and $_.oemVendor -eq $fw.Vendor } | ForEach-Object { $_.id })
+            if ($ids.Count) {
+                Set-CfgSoftwareSelection -Ids $ids -Add
+                $script:Ui.Tabs.SelectedIndex = 2
+                Write-CfgLog ("Herramienta oficial de {0} marcada en Software: {1}. Pulsa 'Instalar selección'." -f $fw.Vendor, (($ids | ForEach-Object { $script:G.SwById[$_].name }) -join ', '))
+            }
+            elseif ($fw.SupportUrl) { Write-CfgLog "Abriendo la web de controladores de $($fw.Vendor): $($fw.SupportUrl)"; Start-Process $fw.SupportUrl }
+            else { Show-CfgMessage 'No se ha identificado el fabricante: busca los controladores en su web con el modelo de la placa base.' | Out-Null }
+        })
+    $ui.BtnFwCheck.Add_Click({
+            Start-CfgTask -Title (T 'Comprobando BIOS y requisitos') -Script { $fw = Get-CfgFirmwareInfo; @{ Fw = $fw; Checks = @(Test-CfgGamingReadiness -Fw $fw); Guide = @(Get-CfgFirmwareGuide -Fw $fw -AsParts) } } -OnComplete { param($out) if ($out) { Set-CfgFirmwareView $out[0].psobject.BaseObject } }
+        })
+    $ui.BtnFwSupport.Add_Click({
+            $fw = $script:G.Fw
+            if (-not $fw) { Show-CfgMessage "Primero pulsa 'Comprobar BIOS y requisitos'." | Out-Null; return }
+            try { [System.Windows.Clipboard]::SetText("$($fw.Model)") } catch { }
+            $url = if ($fw.SupportUrl) { $fw.SupportUrl } else { 'https://www.bing.com/search?q=' + [uri]::EscapeDataString("$($fw.VendorText) $($fw.Model) BIOS") }
+            Write-CfgLog ("Modelo '{0}' copiado al portapapeles. BIOS actual: {1} ({2}). Abriendo {3}" -f $fw.Model, $fw.BiosVersion, $fw.BiosDate, $url)
+            Start-Process $url
+        })
+    $ui.BtnFwPrepare.Add_Click({
+            if (-not (Confirm-CfgAction 'Se creará un punto de restauración y se suspenderá BitLocker durante el próximo reinicio para que puedas actualizar o cambiar la BIOS sin que pida la clave de recuperación. ¿Continuar?')) { return }
+            Start-CfgTask -Title (T 'Preparar actualización de BIOS') -Script { New-CfgRestorePoint -Description 'Eureka_Utils - antes de actualizar la BIOS' | Out-Null; Suspend-CfgBitLockerForFirmware }
+        })
+    $ui.BtnMbrValidate.Add_Click({ Start-CfgTask -Title (T 'Comprobar conversión MBR → GPT') -Script { Invoke-CfgMbr2Gpt } })
+    $ui.BtnMbrConvert.Add_Click({
+            if (-not (Confirm-CfgAction "Se va a convertir el disco del sistema de MBR a GPT con la herramienta oficial MBR2GPT (no borra datos).`n`nDESPUÉS es OBLIGATORIO entrar en la BIOS y cambiar a modo UEFI (desactivar CSM/Legacy), o Windows no arrancará.`n`nHaz antes una copia de seguridad de tus datos. ¿Continuar?")) { return }
+            if (-not (Confirm-CfgAction 'Última confirmación: ¿convertir ahora el disco del sistema a GPT?')) { return }
+            Start-CfgTask -Title (T 'Convertir el disco a GPT') -Script { Suspend-CfgBitLockerForFirmware | Out-Null; Invoke-CfgMbr2Gpt -Convert } -OnComplete { $script:Ui.BtnFwCheck.RaiseEvent((New-Object System.Windows.RoutedEventArgs ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) }
+        })
+    $ui.BtnTpmConsole.Add_Click({ Start-CfgConsole -Id 'tpm.msc' })
+    $ui.BtnRebootFw.Add_Click({
+            $guide = $script:Ui.FwGuide.Text
+            if (-not (Confirm-CfgAction ((T "El equipo se reiniciará directamente en la configuración de la BIOS/UEFI en 15 segundos. Guarda tu trabajo.`n`nApunta los pasos:`n{0}`n`n¿Reiniciar ahora?") -f $guide))) { return }
+            Restart-CfgToFirmware
+        })
+
     # ---------------- Registro
-    $ui.BtnOpenLogFile.Add_Click({ Start-Process notepad.exe $script:G.LogFile })
-    $ui.BtnOpenLogs.Add_Click({ Start-Process explorer.exe (Split-Path $script:G.LogFile) })
+    $ui.BtnClearData.Add_Click({
+            if (-not (Confirm-CfgAction 'Se borrarán los registros anteriores y todo lo exportado (informes HTML, listas de hardware, hash de Autopilot, diagnósticos MDM y copias de controladores). Contienen el nombre del equipo, usuarios y software instalado. No se puede deshacer. ¿Borrar?')) { return }
+            Start-CfgTask -Title (T 'Borrar registros e informes') -Script { param($L) Clear-CfgUserData -KeepLog $L | Out-Null } -Arguments @($script:G.LogFile)
+        })
+    $ui.BtnOpenLogFile.Add_Click({ Start-Process (Get-CfgSystemExe "notepad.exe") $script:G.LogFile })
+    $ui.BtnOpenLogs.Add_Click({ Start-Process (Get-CfgSystemExe "explorer.exe") (Split-Path $script:G.LogFile) })
 
     # ---------------- Temporizador, arranque y cierre
     $timer = New-Object System.Windows.Threading.DispatcherTimer
@@ -1190,9 +1368,15 @@ function Show-CfgGui {
             if ($script:G.CapturePath) { Start-CfgDetection -Then { Start-CfgUpdateScan -Then { Save-CfgCaptures } } }
             elseif ($script:G.PostInstall) { Start-CfgDetection -Then { Start-CfgPostInstall } }
             else { Start-CfgDetection -Then { Start-CfgUpdateScan } }
+            if (@($script:G.FolderRisk).Count -and -not $script:G.CapturePath) {
+                $msg = (T "Por seguridad: la carpeta de Eureka_Utils la pueden modificar usuarios sin permisos de administrador ({0}). Alguien podría cambiar sus scripts para que se ejecuten como administrador.`n`n¿Proteger la carpeta ahora (solo administradores y SYSTEM podrán modificarla)?") -f ($script:G.FolderRisk -join ', ')
+                if ((Show-CfgMessage -Text $msg -Icon 'Warning' -Buttons 'YesNo') -eq 'Yes') {
+                    if (Protect-CfgFolder -Path $script:G.Root) { $script:G.FolderRisk = @() }
+                }
+            }
         })
     if ($Tab) {
-        $map = @{ Equipo = 0; Hardware = 1; Software = 2; Actualizaciones = 3; Bloatware = 4; Ajustes = 5; Cuentas = 6; USB = 7; Diagnostico = 8; Registro = 9 }
+        $map = @{ Equipo = 0; Hardware = 1; Software = 2; Actualizaciones = 3; Bloatware = 4; Ajustes = 5; Cuentas = 6; USB = 7; Drivers = 8; Diagnostico = 9; Registro = 10 }
         if ($map.ContainsKey($Tab)) { $ui.Tabs.SelectedIndex = $map[$Tab] }
     }
 

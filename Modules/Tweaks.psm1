@@ -98,16 +98,19 @@ $script:Tweaks = @(
         Test = { try { (Get-MpPreference -ErrorAction Stop).PUAProtection -eq 1 } catch { $false } }
         Apply = { Set-MpPreference -PUAProtection Enabled } }
     @{ Id = 'rdp-on'; Name = 'Habilitar Escritorio remoto'; Category = 'Administración'; Scope = 'Equipo'
-        Description = 'Permite conexiones RDP con autenticación a nivel de red (NLA) y abre la regla del firewall. Requiere Windows Pro o superior.'
-        Test = { Test-CfgReg 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' 0 }
+        Description = 'Permite conexiones RDP con autenticación a nivel de red (NLA). El firewall solo las admite en redes de dominio y privadas, nunca en redes públicas. Requiere Windows Pro o superior.'
+        Test = {
+            (Test-CfgReg 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' 0) -and
+            -not @(Get-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and ($_.Profile -eq 'Any' -or "$($_.Profile)" -match 'Public') }).Count }
         Apply = {
             Set-CfgReg 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' 0
             Set-CfgReg 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' 'UserAuthentication' 1
-            Enable-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue } }
+            # Seguridad: reglas de entrada RDP solo para perfiles de dominio y privado
+            Get-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue | Set-NetFirewallRule -Profile Domain, Private -Enabled True -ErrorAction SilentlyContinue } }
     @{ Id = 'sudo-on'; Name = 'Habilitar sudo para Windows'; Category = 'Administración'; Scope = 'Equipo'
-        Description = 'Permite ejecutar comandos elevados con "sudo" desde la terminal (Windows 11 24H2+).'
-        Test = { Test-CfgReg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' 'Enabled' 3 }
-        Apply = { Set-CfgReg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' 'Enabled' 3 } }
+        Description = 'Permite ejecutar comandos elevados con "sudo" desde la terminal (Windows 11 24H2+), en el modo más seguro: el comando elevado se abre en una ventana nueva.'
+        Test = { Test-CfgReg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' 'Enabled' 1 }
+        Apply = { Set-CfgReg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' 'Enabled' 1 } }
 )
 
 function Get-CfgTweaks {

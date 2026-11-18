@@ -105,6 +105,25 @@ function Measure-CfgSoftwareImpact {
     }
 }
 
+function Test-CfgInstallerTrust {
+    <# Un instalador local es de confianza si coincide su huella SHA-256 con la del catálogo o, si el
+       catálogo no la indica, si tiene una firma digital válida. También exige que esté dentro de Eureka_Utils. #>
+    param([Parameter(Mandatory)][string]$Path, $Item)
+    $root = (Resolve-Path (Get-CfgRoot)).Path.TrimEnd('\') + '\'
+    $full = (Resolve-Path $Path).Path
+    if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{ Trusted = $false; Reason = "La ruta del instalador sale de la carpeta de Eureka_Utils ($full)." }
+    }
+    $hash = (Get-FileHash -Path $full -Algorithm SHA256).Hash
+    if ($Item -and $Item.PSObject.Properties['sha256'] -and $Item.sha256) {
+        if ($hash -ieq $Item.sha256) { return [pscustomobject]@{ Trusted = $true; Reason = "huella SHA-256 correcta ($hash)" } }
+        return [pscustomobject]@{ Trusted = $false; Reason = "La huella SHA-256 no coincide con el catálogo (esperada $($Item.sha256), obtenida $hash): el archivo puede estar alterado." }
+    }
+    $sig = Get-AuthenticodeSignature -FilePath $full
+    if ($sig.Status -eq 'Valid') { return [pscustomobject]@{ Trusted = $true; Reason = "firma digital válida de $($sig.SignerCertificate.Subject)" } }
+    return [pscustomobject]@{ Trusted = $false; Reason = "No tiene firma digital válida ($($sig.Status)) y el catálogo no indica su huella. Añade ""sha256"": ""$hash"" a su entrada en Catalog\software.json si confías en él." }
+}
+
 function Install-CfgSoftwareItem {
     param([Parameter(Mandatory)]$Item)
     Write-CfgLog "Instalando $($Item.name)..." STEP
@@ -163,11 +182,19 @@ function Install-CfgSoftwareItem {
                     Write-CfgLog "No se encuentra el instalador local: $path (consulta Packages\LEEME.txt)" ERROR
                     return (New-CfgResult -Id $Item.id -Name $Item.name -Action 'Instalar' -Success $false -Message 'Instalador local no encontrado')
                 }
+                # Seguridad: el instalador se ejecuta como administrador, así que antes se comprueba
+                # su huella SHA-256 (campo "sha256" del catálogo) o, si no la hay, su firma digital.
+                $trust = Test-CfgInstallerTrust -Path $path -Item $Item
+                if (-not $trust.Trusted) {
+                    Write-CfgLog "$($Item.name): no se instala por seguridad. $($trust.Reason)" ERROR
+                    return (New-CfgResult -Id $Item.id -Name $Item.name -Action 'Instalar' -Success $false -Message $trust.Reason)
+                }
+                Write-CfgLog "   Instalador verificado: $($trust.Reason)" OK
                 $pkgDir  = Split-Path -Parent $path
                 $argLine = ''
                 if ($Item.PSObject.Properties['installArgs'] -and $Item.installArgs) { $argLine = $Item.installArgs.Replace('{pkgdir}', $pkgDir) }
                 if ([IO.Path]::GetExtension($path) -eq '.msi') {
-                    $p = Start-Process -FilePath 'msiexec.exe' -ArgumentList ("/i `"$path`" /qn /norestart $argLine").Trim() -Wait -PassThru
+                    $p = Start-Process -FilePath (Get-CfgSystemExe 'msiexec.exe') -ArgumentList ("/i `"$path`" /qn /norestart $argLine").Trim() -Wait -PassThru
                 }
                 elseif ($argLine) {
                     $p = Start-Process -FilePath $path -ArgumentList $argLine -WorkingDirectory $pkgDir -Wait -PassThru

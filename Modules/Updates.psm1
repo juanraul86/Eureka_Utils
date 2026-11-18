@@ -76,13 +76,15 @@ function Get-CfgPackageLinks {
        Devuelve Download (instalador), Homepage, Publisher, ReleaseNotes y Best (el más útil). #>
     param([Parameter(Mandatory)][string]$Id, [string]$Source = 'winget')
     $winget = Get-CfgWingetPath
-    $r = [ordered]@{ Id = $Id; Download = $null; Homepage = $null; Publisher = $null; ReleaseNotes = $null; Best = $null }
+    $r = [ordered]@{ Id = $Id; Download = $null; Homepage = $null; Publisher = $null; ReleaseNotes = $null; Sha256 = $null; Best = $null }
     if ($winget) {
         $prev = $null
         try { $prev = [Console]::OutputEncoding; [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
         $lines = @(& $winget show --id $Id --exact --source $Source --accept-source-agreements --disable-interactivity 2>$null)
         if ($prev) { try { [Console]::OutputEncoding = $prev } catch { } }
         foreach ($l in $lines) {
+            $h = [regex]::Match("$l", '(?i)sha256\s*:\s*([0-9a-f]{64})')
+            if ($h.Success -and -not $r.Sha256) { $r.Sha256 = $h.Groups[1].Value.ToUpper() }
             $m = [regex]::Match("$l", '^\s*([^:]+?)\s*:\s*(https?://\S+)')
             if (-not $m.Success) { continue }
             $label = $m.Groups[1].Value.ToLower(); $url = $m.Groups[2].Value
@@ -109,11 +111,11 @@ function Test-CfgUpdateResults {
         $still = $after | Where-Object { $_.Id -eq $b.Id } | Select-Object -First 1
         if ($still) {
             $links = Get-CfgPackageLinks -Id $b.Id -Source $(if ($b.Source) { $b.Source } else { 'winget' })
-            Write-CfgLog ("No se ha podido instalar la actualización de {0} ({1} -> {2}). Descarga manual: {3}" -f $b.Name, $b.Version, $b.Available, $links.Best) ERROR
+            Write-CfgLog ("No se ha podido instalar la actualización de {0} ({1} -> {2}). Descarga manual: {3}{4}" -f $b.Name, $b.Version, $b.Available, $links.Best, $(if ($links.Sha256) { " · SHA-256 del instalador: $($links.Sha256)" } else { '' })) ERROR
             [pscustomobject]@{
                 Name = $b.Name; Id = $b.Id; Version = $still.Version; Available = $b.Available
                 Reason = 'La aplicación sigue con una actualización pendiente después de ejecutar el instalador.'
-                Link = $links.Best; Download = $links.Download; Homepage = $links.Homepage
+                Link = $links.Best; Download = $links.Download; Homepage = $links.Homepage; Sha256 = $links.Sha256
                 UpdateFailure = $true
             }
         }

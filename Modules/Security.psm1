@@ -150,7 +150,9 @@ function Get-CfgSafetyScanner {
         }
     }
     $sig = Get-AuthenticodeSignature $file
-    if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Microsoft') {
+    $subject = [string]$sig.SignerCertificate.Subject
+    $issuer = [string]$sig.SignerCertificate.Issuer
+    if ($sig.Status -ne 'Valid' -or $subject -notmatch '(^|,\s*)O=Microsoft Corporation(,|$)' -or $issuer -notmatch '(^|,\s*)O=Microsoft Corporation(,|$)') {
         Write-CfgLog 'La firma digital del Safety Scanner descargado no es válida de Microsoft: se elimina.' ERROR
         Remove-Item $file -Force -ErrorAction SilentlyContinue
         return (New-CfgResult -Id 'msert' -Name 'Safety Scanner' -Action 'Seguridad' -Success $false -Message 'Firma no válida')
