@@ -79,7 +79,7 @@ $bw.Close()
 Copy-Item $ico (Join-Path $root 'UI\eureka_utils.ico') -Force
 
 # ---------------------------------------------------------------- payload (carpeta de Eureka_Utils)
-$exclude = '^(\.git|\.github|\.signpath|Logs|Exports|Dist|Build|Docs|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.exe$|\.log$|^(index\.html|robots\.txt|sitemap\.xml|google[0-9a-f]+\.html)$'
+$exclude = '^(\.git|\.github|\.signpath|Logs|Exports|Dist|Build|Docs|assets|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.exe$|\.log$|^(index\.html|robots\.txt|sitemap\.xml|google[0-9a-f]+\.html)$'
 $files = Get-ChildItem $root -Recurse -File -Force | Where-Object { $_.FullName.Substring($root.Length + 1) -notmatch $exclude }
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 function New-CfgZip([string]$Path, $Items, [string]$Prefix) {

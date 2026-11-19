@@ -1,0 +1,31 @@
+name: Propuesta de mejora / Feature request
+description: Una idea para mejorar Eureka_Utils / An idea to improve Eureka_Utils
+labels: ["mejora"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qué problema resuelve / What problem does it solve
+      description: Cuéntalo con un caso real / Describe a real situation
+    validations:
+      required: true
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Para quién / Who is it for
+      multiple: true
+      options:
+        - Hogar / Home
+        - Oficina / Office
+        - IT / Soporte / Support
+        - Gaming / Streaming
+        - Desarrollo / Development
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta / Proposal
+      description: Qué te gustaría que hiciera y en qué pestaña / What it should do and in which tab
+    validations:
+      required: true

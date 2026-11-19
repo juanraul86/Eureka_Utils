@@ -1,0 +1,52 @@
+name: Informe de error / Bug report
+description: Algo no funciona como debería / Something does not work as expected
+labels: ["error"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. ¿Es un problema de seguridad? No lo publiques aquí: sigue SECURITY.md.
+        Thanks for reporting. Security issue? Do not post it here: see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Eureka_Utils / Eureka_Utils version
+      description: Aparece en el título de la ventana / Shown in the window title
+      placeholder: "2.3.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      description: Edición y versión (Win + R › winver) / Edition and version
+      placeholder: "Windows 11 Pro 25H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: launch
+    attributes:
+      label: Cómo lo ejecutas / How you run it
+      options:
+        - Eureka_Utils_Portable.exe
+        - Eureka_Utils.exe
+        - Eureka_Utils.cmd
+        - Modo desatendido / Unattended (-Desatendido)
+        - USB de instalación / Install USB
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué ha pasado / What happened
+      description: Qué hiciste, qué esperabas y qué ocurrió / Steps, expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Registro / Log
+      description: |
+        Líneas relevantes de la pestaña Registro o de la carpeta Logs. Revísalas antes: pueden contener el nombre del equipo, usuarios y software instalado.
+        Relevant lines from the Log tab or Logs folder. Review them first: they may contain the computer name, users and installed software.
+      render: text

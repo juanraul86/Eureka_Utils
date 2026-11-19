@@ -4,6 +4,9 @@ Guía para que los ejecutables de Eureka_Utils se publiquen **firmados digitalme
 
 SignPath Foundation firma gratis proyectos de **código abierto**. El certificado está a nombre de *SignPath Foundation* e indica el proyecto. La firma no se hace en tu PC: se hace en GitHub Actions, para garantizar que el ejecutable sale exactamente del código público.
 
+
+> **Estado (19 de noviembre de 2026):** SignPath Foundation rechazó la primera solicitud porque el proyecto todavía no tenía suficiente visibilidad pública (estrellas, *forks*, colaboradores, menciones externas o actividad mantenida). No es un problema del código. El plan es volver a solicitarlo cuando el proyecto tenga más difusión. Mientras tanto los ejecutables se publican sin firmar, con su huella SHA-256. Alternativa de pago: un certificado de Certum para código abierto (`Build-Exe.ps1 -CertificateThumbprint`).
+
 ## Lo que ya está preparado en el repositorio
 
 | Requisito de SignPath | Dónde está |
