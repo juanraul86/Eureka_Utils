@@ -28,13 +28,14 @@ a{color:#0f62fe}
 <header>
 <h1>Eureka_Utils</h1>
 <p>Utilidad portable para configurar, auditar y diagnosticar equipos Windows 11, de uso personal y profesional.</p>
-<a class="btn" href="https://github.com/juanraul86/Eureka_Utils/releases/tag/v2.1.0">Descargar v2.1.0</a>
+<a class="btn" href="https://github.com/juanraul86/Eureka_Utils/releases/latest">Descargar la última versión</a>
 <a class="btn alt" href="https://github.com/juanraul86/Eureka_Utils">Código en GitHub</a>
 </header>
 <main>
 <h2>Qué hace</h2>
 <ul>
-<li><strong>Hardware:</strong> detecta CPU, RAM, discos, red y tarjeta gráfica (NVIDIA, AMD o Intel) y comprueba la compatibilidad con Windows 11.</li>
+<li><strong>Hardware:</strong> identifica el equipo (modelo, número de serie, Machine Type de Lenovo, Service Tag de Dell...), detecta CPU, RAM, discos, red y tarjeta gráfica (NVIDIA, AMD o Intel), mide el consumo real de memoria y comprueba la compatibilidad con Windows 11.</li>
+<li><strong>Drivers y BIOS:</strong> todo el hardware con su controlador, controladores y firmware desde Windows Update, versión de la BIOS y requisitos de juegos (TPM 2.0, UEFI y arranque seguro).</li>
 <li><strong>Software:</strong> catálogo con dependencias e impacto en disco y RAM, e instalación y actualización con winget.</li>
 <li><strong>Bloatware:</strong> quita las apps preinstaladas indicando el riesgo de cada una, y permite reinstalarlas.</li>
 <li><strong>Perfiles:</strong> Personal, Oficina (Microsoft 365), Oficina IT, Gaming, Gaming + Streaming, Creativo, Desarrollo, Estudiante y Equipo básico.</li>
@@ -45,12 +46,14 @@ a{color:#0f62fe}
 </ul>
 <h2>Cómo empezar</h2>
 <ol>
-<li>Descarga <code>Eureka_Utils_Portable.exe</code> desde la <a href="https://github.com/juanraul86/Eureka_Utils/releases/tag/v2.1.0">página de la versión 2.1.0</a>.</li>
+<li>Descarga <code>Eureka_Utils_Portable.exe</code> desde la <a href="https://github.com/juanraul86/Eureka_Utils/releases/latest">página de la última versión</a> y, si quieres, comprueba su huella SHA-256 (está en las notas de cada versión).</li>
 <li>Ejecútalo y acepta el aviso de administrador. Si Smart App Control bloquea el .exe, usa <code>Eureka_Utils.cmd</code> desde el código fuente.</li>
 <li>Espera a que termine la detección, elige un perfil y revisa la selección antes de aplicar.</li>
 </ol>
 <p>Toda acción que modifica el equipo pide confirmación y se puede crear un punto de restauración antes de aplicarla.</p>
-</main>
-<footer>Eureka_Utils · por <a href="https://www.linkedin.com/in/juanraulruizbartran">Juan Raúl Ruiz</a> · Licencia MIT</footer>
+<h2>Firma de código</h2>
+<p>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
+<p>Firma de código gratuita proporcionada por SignPath.io, certificado de SignPath Foundation. Los ejecutables se compilan y se firman automáticamente en GitHub Actions a partir del código público del repositorio. Consulta la <a href="https://github.com/juanraul86/Eureka_Utils#pol%C3%ADtica-de-firma-de-c%C3%B3digo-code-signing-policy">política de firma de código</a> y la <a href="https://github.com/juanraul86/Eureka_Utils#privacidad">política de privacidad</a>.</p>
+</main><footer>Eureka_Utils · por <a href="https://www.linkedin.com/in/juanraulruizbartran">Juan Raúl Ruiz</a> · Licencia MIT</footer>
 </body>
 </html>
