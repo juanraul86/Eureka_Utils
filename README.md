@@ -70,6 +70,10 @@ La documentación completa (guía de instalación, manual de usuario, guía del 
 
 Vídeos y novedades en las redes de Eureka_Utils: [YouTube](https://www.youtube.com/@eureka_utils) · [TikTok](https://www.tiktok.com/@eureka_utils) · [Instagram](https://www.instagram.com/eureka_utils/)
 
+## De la misma familia
+
+[Eureka_CloudSpeed](https://github.com/juanraul86/Eureka_CloudSpeed) ([web](https://juanraul86.github.io/Eureka_CloudSpeed/)): herramienta gratuita y portable para Windows que mide la latencia y la velocidad a 75 regiones de Azure y AWS, compara el estado de los servicios en la nube y exporta a Excel y Power BI.
+
 ## Aviso
 
 Esta herramienta modifica el equipo (software, ajustes, cuentas, dominio). Toda acción que lo cambia pide confirmación y se puede crear un punto de restauración antes de aplicar cambios. Revisa el perfil y la selección antes de ejecutarlo en equipos de producción.
