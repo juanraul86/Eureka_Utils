@@ -27,6 +27,26 @@ static class Program
     const string Title = "Eureka_Utils";
 
     [STAThread]
+    static bool CanRead(string file)
+    {
+        try { using (File.OpenRead(file)) { } return true; } catch { return false; }
+    }
+
+    static void RepairPermissions(string root)
+    {
+        string probe = Path.Combine(Path.Combine(root, "Modules"), "Core.psm1");
+        if (CanRead(Path.Combine(root, "Eureka_Utils.ps1")) && (!File.Exists(probe) || CanRead(probe))) return;
+        try
+        {
+            ProcessStartInfo fix = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "icacls.exe"),
+                Quote(Path.Combine(root.TrimEnd(Path.DirectorySeparatorChar), "*")) + " /reset /T /C /Q");
+            fix.UseShellExecute = false;
+            fix.CreateNoWindow = true;
+            using (Process p = Process.Start(fix)) { p.WaitForExit(120000); }
+        }
+        catch { }
+    }
+
     static int Main(string[] args)
     {
         string runDir = null;
@@ -46,6 +66,11 @@ static class Program
                     Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 2;
             }
+#if !SINGLEFILE
+            // Autorreparación: si los permisos de los archivos de código están dañados (nadie puede
+            // leerlos), vuelven a heredar los de la carpeta de Eureka_Utils.
+            RepairPermissions(root);
+#endif
 #if !SINGLEFILE
             // Seguridad: el .exe lleva la huella SHA-256 de cada archivo de código. Si alguno se ha
             // modificado o se ha añadido un script, no se ejecuta nada (estaría corriendo como administrador).

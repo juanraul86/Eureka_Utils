@@ -148,7 +148,9 @@ function New-CfgAutounattendXml {
     }
     $name = if ($S.ComputerName) { & $e $S.ComputerName } else { '*' }
     $sys = '%SystemRoot%\System32'
-    $aclCmd  = $sys + '\cmd.exe /c if exist C:\Eureka_Utils ' + $sys + '\icacls.exe C:\Eureka_Utils /inheritance:r /grant:r *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /T /C /Q'
+    # Primero solo la carpeta (sin /T: (OI)(CI) en archivos falla y los deja sin permisos) y después
+    # todo lo de dentro vuelve a heredar de ella.
+    $aclCmd  = $sys + '\cmd.exe /c if exist C:\Eureka_Utils (' + $sys + '\icacls.exe C:\Eureka_Utils /inheritance:r /grant:r *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C /Q & ' + $sys + '\icacls.exe C:\Eureka_Utils\* /reset /T /C /Q)'
     $copyCmd = $sys + '\cmd.exe /c if not exist C:\Eureka_Utils\Eureka_Utils.ps1 for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist "%d:\sources\$OEM$\$1\Eureka_Utils\Eureka_Utils.ps1" ' + $sys + '\robocopy.exe "%d:\sources\$OEM$\$1\Eureka_Utils" C:\Eureka_Utils /E /NFL /NDL /NJH /NJS /NP'
     $runCmd  = $sys + '\cmd.exe /c start "" ' + $sys + '\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File C:\Eureka_Utils\Eureka_Utils.ps1 -PostInstalacion'
 

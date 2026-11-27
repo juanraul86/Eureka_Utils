@@ -4,6 +4,13 @@
 - **Eureka_Utils_Portable.exe**: un solo archivo con todo dentro. Llévalo a cualquier equipo y ejecútalo (pide permisos de administrador).
 - **Eureka_Utils.exe**: lanzador para usar junto al código del repositorio (descarga el código con *Code > Download ZIP*).
 
+### Novedades de la 2.4.0
+- **Tareas en paralelo**: puedes listar el hardware, medir la memoria o analizar el sistema mientras se instalan o actualizan aplicaciones. Hasta 4 tareas a la vez; las que modifican el equipo van de una en una y esperan en cola. La barra de estado muestra cuántas hay en curso y en espera.
+- **Explicación de cada aviso (ⓘ)**: cada comprobación con aviso o fallo tiene un icono que explica a qué se debe y cómo solucionarlo, muestra datos técnicos y prepara un informe (sin el nombre del equipo ni del usuario) para preguntar a la IA que elijas: Claude, Copilot, ChatGPT, Gemini, Perplexity, Le Chat u otra.
+- **Corrección crítica**: proteger la carpeta dejaba los archivos sin permisos y ningún botón funcionaba («El término 'Get-Cfg…' no se reconoce…»). Esta versión lo corrige, lo repara sola al abrirse y evita que vuelva a pasar. **Si creaste un USB de instalación con una versión anterior, vuelve a crearlo.**
+- Otras correcciones: falso aviso de «carpeta insegura» en cada arranque, falso aviso de «Volumen marcado para revisión», «Informe de batería» en equipos de sobremesa, error al exportar la lista de hardware y botones que se reactivaban cuando no debían.
+- Detalle de cada error (qué pasaba, por qué y cómo se ha solucionado) en [REGISTRO-DE-ERRORES.md](https://github.com/juanraul86/Eureka_Utils/blob/main/REGISTRO-DE-ERRORES.md) y novedades en [CHANGELOG.md](https://github.com/juanraul86/Eureka_Utils/blob/main/CHANGELOG.md).
+
 ### Novedades de la 2.3.0
 - **Arranque hasta 4 veces más rápido**: la detección inicial pasa de unos 18 s a menos de 5 s (el TPM ya no se consulta sin permisos de administrador y el procesador y la memoria se leen sin esperas innecesarias).
 - **Aviso de versión nueva** de Eureka_Utils con descarga verificada por SHA-256 (se puede desactivar).

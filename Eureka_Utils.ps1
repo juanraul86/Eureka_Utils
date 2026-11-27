@@ -50,6 +50,18 @@ $sys32 = Join-Path $env:SystemRoot 'System32'
 Set-Location $sys32
 [Environment]::CurrentDirectory = $sys32
 
+# Autorreparación de permisos: si algún archivo de código no se puede leer (por ejemplo, por la
+# protección de carpeta defectuosa de la versión 2.3.0), vuelve a heredar los permisos de la carpeta.
+$cfgCanRead = { param($f) try { [IO.File]::OpenRead($f).Dispose(); $true } catch { $false } }
+$cfgBroken = @(foreach ($d in 'Modules', 'UI', 'Lang') { Get-ChildItem -LiteralPath (Join-Path $Root $d) -File -ErrorAction SilentlyContinue | Where-Object { -not (& $cfgCanRead $_.FullName) } })
+$cfgRepaired = 0
+if ($cfgBroken.Count) {
+    & (Join-Path $env:SystemRoot 'System32\icacls.exe') (Join-Path $Root '*') /reset /T /C /Q 2>&1 | Out-Null
+    $cfgStill = @($cfgBroken | Where-Object { -not (& $cfgCanRead $_.FullName) })
+    $cfgRepaired = $cfgBroken.Count - $cfgStill.Count
+    if ($cfgStill.Count) { Write-Host ("Eureka_Utils no puede leer {0}. Ábrelo como administrador para que repare los permisos." -f (($cfgStill | ForEach-Object Name) -join ', ')) -ForegroundColor Red }
+}
+
 # Seguridad: solo se cargan los módulos conocidos (un .psm1 añadido a la carpeta no se ejecuta)
 $CfgModuleNames = @('Core', 'Hardware', 'Software', 'Updates', 'Bloatware', 'Tweaks', 'Accounts', 'Domain', 'Diagnostics', 'Security', 'Drivers', 'Media', 'Profiles', 'Report')
 $unknown = @(Get-ChildItem (Join-Path $Root 'Modules') -Filter '*.psm1' | Where-Object { $CfgModuleNames -notcontains $_.BaseName })
@@ -58,6 +70,7 @@ foreach ($m in $CfgModuleNames) {
     if (Test-Path $p) { Import-Module $p -Force -DisableNameChecking -Global }
 }
 $logFile = Set-CfgEnvironment -Root $Root
+if ($cfgRepaired) { Write-CfgLog "Permisos reparados: $cfgRepaired archivos de código no se podían leer y vuelven a heredar los permisos de la carpeta." OK }
 foreach ($u in $unknown) { Write-CfgLog "Módulo desconocido ignorado por seguridad: $($u.Name). Si no lo has añadido tú, elimínalo." WARN }
 
 # ------------------------------------------------------------------ listar catálogo

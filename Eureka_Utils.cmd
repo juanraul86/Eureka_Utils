@@ -23,6 +23,11 @@ if errorlevel 1 (
     exit /b
 )
 
+rem Autorreparacion: si el script no se puede leer (permisos danados), todo lo de
+rem esta carpeta vuelve a heredar los permisos de la carpeta de Eureka_Utils.
+type "%~dp0Eureka_Utils.ps1" >nul 2>&1
+if errorlevel 1 "%SystemRoot%\System32\icacls.exe" "%~dp0*" /reset /T /C /Q >nul 2>&1
+
 if "%~1"=="" (
     "%PSEXE%" -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0Eureka_Utils.ps1" -OcultarConsola
 ) else (

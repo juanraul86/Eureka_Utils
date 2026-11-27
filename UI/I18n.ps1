@@ -88,9 +88,15 @@ function Update-CfgI18nTree {
 }
 
 function ConvertTo-CfgCheckView {
-    <# Traduce Comprobacion y Resultado de las listas de comprobaciones. #>
-    param($Items)
+    <# Traduce Comprobacion y Resultado de las listas de comprobaciones. Guarda también los textos
+       originales (Clave, Codigo, DetalleEs) para el icono "i" de las filas que no están en OK. #>
+    param($Items, [string]$Area, [switch]$TranslateDetail)
+    $tip = T 'Ver a qué se debe, cómo solucionarlo y preguntar a la IA'
     @($Items | Where-Object { $_ -and $_.PSObject.Properties['Comprobacion'] } | ForEach-Object {
-            [pscustomobject]@{ Comprobacion = (T $_.Comprobacion); Resultado = (T $_.Resultado); Detalle = $_.Detalle }
+            $det = [string]$_.Detalle
+            [pscustomobject]@{
+                Comprobacion = (T $_.Comprobacion); Resultado = (T $_.Resultado); Detalle = $(if ($TranslateDetail) { T $det } else { $det })
+                Clave = [string]$_.Comprobacion; Codigo = [string]$_.Resultado; DetalleEs = $det; Area = $Area; InfoTip = $tip
+            }
         })
 }

@@ -47,7 +47,7 @@ Test-Case 'Eureka_Utils.cmd es ASCII con finales CRLF' {
 }
 
 # ------------------------------------------------------------------ módulos
-foreach ($m in 'Core', 'Hardware', 'Software', 'Updates', 'Bloatware', 'Tweaks', 'Drivers', 'Profiles') {
+foreach ($m in 'Core', 'Hardware', 'Software', 'Updates', 'Bloatware', 'Tweaks', 'Drivers', 'Profiles', 'Diagnostics') {
     Import-Module (Join-Path $Root "Modules\$m.psm1") -Force -DisableNameChecking
 }
 Set-CfgEnvironment -Root $Root -LogFile (Join-Path $env:TEMP 'eureka_tests.log') | Out-Null
@@ -208,6 +208,117 @@ Test-Case 'Actualización: versión válida y solo descarga desde las releases d
     $r = Save-CfgLatestRelease -Release $fake -Folder $env:TEMP
     Assert-True (-not $r.Success) 'Descargó sin huella SHA-256 publicada'
 }
+# ------------------------------------------------------------------ ayuda de las comprobaciones (icono "i")
+Write-Host 'Ayuda de avisos'
+Test-Case 'fsutil: "no contiene errores" no es un aviso (en cualquier idioma)' {
+    Assert-True (-not (Test-CfgVolumeDirtyText 'El volumen - C: no contiene errores')) 'Español actual'
+    Assert-True (-not (Test-CfgVolumeDirtyText 'El volumen - C: no está sucio')) 'Español antiguo'
+    Assert-True (-not (Test-CfgVolumeDirtyText 'Volume - C: is NOT Dirty')) 'Inglés'
+    Assert-True (Test-CfgVolumeDirtyText 'Volume - C: is Dirty') 'Inglés sucio'
+    Assert-True (Test-CfgVolumeDirtyText 'El volumen - C: contiene errores') 'Español sucio'
+}
+Test-Case 'Cada comprobación que puede avisar o fallar tiene su explicación' {
+    $names = foreach ($f in Get-ChildItem (Join-Path $Root 'Modules') -Filter *.psm1) {
+        foreach ($line in [IO.File]::ReadAllLines($f.FullName, [Text.Encoding]::UTF8)) {
+            if ($line -notmatch "'(AVISO|FALLO)'") { continue }
+            foreach ($m in [regex]::Matches($line, '(?:New-CfgCheck|& \$add)\s+[''"]([^''"$]+)')) {
+                $n = $m.Groups[1].Value.Trim()
+                if ($n -notin 'INFO', 'ACCIÓN', 'AVISO', 'CRÍTICO') { $n }
+            }
+        }
+    }
+    Assert-True (@($names).Count -ge 30) "Solo se encontraron $(@($names).Count) comprobaciones"
+    Assert-Empty ($names | Select-Object -Unique | Where-Object { -not (Get-CfgCheckHelp -Check $_).Known }) 'Sin explicación'
+}
+Test-Case 'Las explicaciones y soluciones están traducidas' {
+    Assert-Empty (Get-CfgCheckHelp -All | ForEach-Object { $_.C; $_.S } | Where-Object { -not $keys.ContainsKey($_) } | ForEach-Object { $_.Substring(0, [math]::Min(60, $_.Length)) }) 'Sin traducir'
+}
+Test-Case 'El informe para la IA oculta el nombre del equipo y del usuario' {
+    $t = Protect-CfgPrivateText ("Equipo $env:COMPUTERNAME, usuario $env:USERNAME, perfil $env:USERPROFILE\Desktop")
+    if ($env:COMPUTERNAME.Length -ge 3) { Assert-True ($t -notmatch [regex]::Escape($env:COMPUTERNAME)) "Sigue el nombre del equipo: $t" }
+    if ($env:USERNAME.Length -ge 3) { Assert-True ($t -notmatch [regex]::Escape($env:USERNAME)) "Sigue el usuario: $t" }
+    Assert-True ($t.Contains('C:\Users\usuario\Desktop')) "Perfil: $t"
+}
+Test-Case 'Las filas de comprobación tienen el icono "i" en la plantilla' {
+    $x = Get-Content (Join-Path $Root 'UI\MainWindow.xaml') -Raw -Encoding UTF8
+    Assert-True ($x -match 'x:Key="InfoDot"' -and $x -match 'Uid="CheckInfo"') 'Falta el estilo InfoDot o el botón en CheckTemplate'
+    $g = Get-Content (Join-Path $Root 'UI\Gui.ps1') -Raw -Encoding UTF8
+    Assert-True ($g -match "Uid -eq 'CheckInfo'") 'Falta el manejador del clic'
+}
+# ------------------------------------------------------------------ tareas en paralelo
+Write-Host 'Tareas en paralelo'
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+. (Join-Path $Root 'UI\I18n.ps1')
+. (Join-Path $Root 'UI\Gui.ps1')
+Test-Case 'Cerrojos: lo que modifica el equipo va de uno en uno; lo que solo lee, en paralelo' {
+    $cambios = @('Instalación de software', 'Desinstalación de software', 'Actualizando aplicaciones', 'Actualizando todo', 'Eliminación de bloatware',
+        'Reinstalación de apps', 'Aplicando ajustes', 'Perfil Gaming', 'Post-instalación: perfil Oficina', 'Punto de restauración', 'Instalando controladores',
+        'Instalando controladores desde carpeta', 'Unión a corp.local', 'Renombrar a PC-01', 'Salir del dominio', 'Creando usuario1', 'Administrador: ana',
+        'Convertir el disco a GPT', 'Preparar actualización de BIOS', 'Orígenes de winget')
+    Assert-Empty ($cambios | Where-Object { (Get-CfgTaskLock -Title $_) -ne 'cambios' }) 'Deberían usar el cerrojo cambios'
+    $lectura = @('Detectando estado del equipo', 'Buscando actualizaciones', 'Listando hardware y controladores', 'Midiendo el uso de memoria', 'Analizando el sistema',
+        'Comprobar seguridad', 'Comprobando BIOS y requisitos', 'Informe del equipo', 'Cuentas locales', 'Cargar errores')
+    $locks = @($lectura | ForEach-Object { Get-CfgTaskLock -Title $_ })
+    Assert-Empty ($locks | Where-Object { $_ -in 'cambios', '*', 'defender', 'usb', 'gestion' }) 'Las de solo lectura no deben bloquear a otras'
+    Assert-Equal $lectura.Count (@($locks | Select-Object -Unique).Count) 'Cada tarea de lectura tiene su propio cerrojo'
+    Assert-Equal 'usb' (Get-CfgTaskLock -Title 'Creando USB de instalación') 'El USB no es una cuenta de usuario'
+    Assert-Equal '*' (Get-CfgTaskLock -Title 'Borrar registros e informes') 'Borrar datos es exclusiva'
+}
+Test-Case 'Todas las tareas de la interfaz que modifican el equipo tienen cerrojo compartido' {
+    $g = [IO.File]::ReadAllText((Join-Path $Root 'UI\Gui.ps1'))
+    $titles = @([regex]::Matches($g, "Start-CfgTask -Title \(?T? ?['""]([^'""$]+)") | ForEach-Object { $_.Groups[1].Value.Trim() } | Select-Object -Unique)
+    $risky = 'Instal|Desinstal|Actualizando|Eliminación|Reinstalación|Aplicando|Perfil|Unión|Renombrar|Salir|Convertir|Preparar|Punto de restauración'
+    Assert-Empty ($titles | Where-Object { $_ -match $risky -and (Get-CfgTaskLock -Title $_) -notin 'cambios', 'usb' }) 'Sin cerrojo compartido'
+}
+
+# ------------------------------------------------------------------ permisos de la carpeta
+Write-Host 'Permisos'
+Test-Case 'Ningún icacls con /T usa (OI)(CI): en archivos falla y los deja sin permisos' {
+    Assert-Empty ($code | Where-Object { $_.Name -ne 'Run-Tests.ps1' } | ForEach-Object {
+            $f = $_; $n = 0
+            foreach ($l in [IO.File]::ReadAllLines($f.FullName)) {
+                $n++
+                # Cada llamada a icacls por separado (una línea puede encadenar varias con &)
+                foreach ($call in @($l -split 'icacls' | Select-Object -Skip 1)) { if ($call -match '/T\b' -and $call -match '\(OI\)|\(CI\)') { "$($f.Name):$n" } }
+            }
+        }) 'Llamadas peligrosas'
+}
+$permTmp = Join-Path $env:TEMP ('eureka_perm_' + [guid]::NewGuid().ToString('N'))
+try {
+    foreach ($d in 'Modules', 'UI', 'Lang', 'Catalog') { New-Item -ItemType Directory -Path (Join-Path $permTmp $d) -Force | Out-Null }
+    foreach ($f in 'Eureka_Utils.ps1', 'Modules\Core.psm1', 'Modules\Drivers.psm1', 'UI\Gui.ps1', 'Lang\01.tsv', 'Catalog\software.json') { Set-Content -Path (Join-Path $permTmp $f) -Value 'x' }
+    Test-Case 'Proteger la carpeta deja todo el código legible y heredando de la carpeta' {
+        $null = Protect-CfgFolder -Path $permTmp
+        Assert-Empty (Get-CfgUnreadableCode -Root $permTmp) 'Sin acceso de lectura'
+        Assert-True ((Get-Acl $permTmp).AreAccessRulesProtected) 'La carpeta raíz debería dejar de heredar'
+        foreach ($f in 'Modules\Core.psm1', 'UI\Gui.ps1', 'Eureka_Utils.ps1') {
+            $acl = Get-Acl (Join-Path $permTmp $f)
+            Assert-True (-not $acl.AreAccessRulesProtected) "$f debería heredar permisos"
+            Assert-True (@($acl.Access | Where-Object IsInherited).Count -ge 3) "$f sin permisos heredados"
+        }
+        Assert-Empty (Test-CfgFolderSecurity -Path $permTmp | Where-Object { $_ -ne 'SIN-PERMISOS' }) 'Usuarios sin privilegios con escritura'
+    }
+    Test-Case 'Seguridad de carpeta: la lectura de Usuarios no cuenta como riesgo, la escritura sí' {
+        Assert-Empty (Test-CfgFolderSecurity -Path $permTmp | Where-Object { $_ -ne 'SIN-PERMISOS' }) 'Falso positivo con Usuarios: lectura'
+        & (Join-Path $env:SystemRoot 'System32\icacls.exe') $permTmp /grant '*S-1-5-32-545:(OI)(CI)M' /C /Q | Out-Null
+        $risk = @(Test-CfgFolderSecurity -Path $permTmp)
+        & (Join-Path $env:SystemRoot 'System32\icacls.exe') $permTmp /grant:r '*S-1-5-32-545:(OI)(CI)RX' /C /Q | Out-Null
+        if ($risk -notcontains 'SIN-PERMISOS') { Assert-True ($risk.Count -ge 1) 'No detecta Usuarios con escritura' }
+    }
+    Test-Case 'Autorreparación: un archivo sin permisos vuelve a ser legible' {
+        $victim = Join-Path $permTmp 'Modules\Drivers.psm1'
+        & (Join-Path $env:SystemRoot 'System32\icacls.exe') $victim /inheritance:r /C /Q | Out-Null
+        Assert-True (@(Get-CfgUnreadableCode -Root $permTmp) -contains 'Drivers.psm1') 'No se reprodujo el archivo sin permisos'
+        & (Join-Path $env:SystemRoot 'System32\icacls.exe') (Join-Path $permTmp '*') /reset /T /C /Q | Out-Null
+        Assert-Empty (Get-CfgUnreadableCode -Root $permTmp) 'Sigue sin poder leerse'
+    }
+}
+finally {
+    & (Join-Path $env:SystemRoot 'System32\icacls.exe') $permTmp /grant "$env:USERDOMAIN\$env:USERNAME`:(OI)(CI)F" /C /Q 2>&1 | Out-Null
+    & (Join-Path $env:SystemRoot 'System32\icacls.exe') (Join-Path $permTmp '*') /reset /T /C /Q 2>&1 | Out-Null
+    Remove-Item -LiteralPath $permTmp -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 # ------------------------------------------------------------------ resultado
 Write-Host ''
 if ($script:Fail.Count) {

@@ -76,7 +76,13 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 }
 foreach ($p in $pngs) { $bw.Write($p) }
 $bw.Close()
-Copy-Item $ico (Join-Path $root 'UI\eureka_utils.ico') -Force
+$icoDst = Join-Path $root 'UI\eureka_utils.ico'
+# Solo se copia si ha cambiado: si Eureka_Utils está abierto, el icono está en uso y no se puede sobrescribir
+$same = (Test-Path $icoDst) -and ((Get-FileHash $ico).Hash -eq (Get-FileHash $icoDst).Hash)
+if (-not $same) {
+    try { Copy-Item $ico $icoDst -Force -ErrorAction Stop }
+    catch { Write-Warning "No se pudo actualizar UI\eureka_utils.ico (¿Eureka_Utils está abierto?): $($_.Exception.Message)" }
+}
 
 # ---------------------------------------------------------------- payload (carpeta de Eureka_Utils)
 $exclude = '^(\.git|\.github|\.signpath|Logs|Exports|Dist|Build|Docs|assets|Eureka_Utils_Datos)(\\|$)|^Config\\(preferencias|postinstall).*\.json$|\.exe$|\.log$|^(index\.html|robots\.txt|sitemap\.xml|google[0-9a-f]+\.html)$'

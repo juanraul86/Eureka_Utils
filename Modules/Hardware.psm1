@@ -373,6 +373,10 @@ function Get-CfgMemoryUsage {
     [pscustomobject]@{ TotalMB = $totalMB; FreeMB = $freeMB; UsedMB = $totalMB - $freeMB; Top = $top; ByItem = $byItem; At = (Get-Date -Format 'HH:mm') }
 }
 function New-CfgBatteryReport {
+    if (-not @(Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue).Count) {
+        Write-CfgLog 'Este equipo no tiene batería (es de sobremesa o la batería no está conectada): no hay informe de batería que generar.' INFO
+        return (New-CfgResult -Id 'battery' -Name 'Informe de batería' -Action 'Exportar' -Success $true -Message '')
+    }
     $file = Join-Path (Get-CfgExportFolder) ('Bateria_{0}_{1}.html' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyyMMdd_HHmmss'))
     & powercfg.exe /batteryreport /output $file | Out-Null
     $ok = Test-Path $file

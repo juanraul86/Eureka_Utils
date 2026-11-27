@@ -10,7 +10,7 @@
 
 Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de uso personal y profesional. Detecta el hardware (incluida la tarjeta gráfica NVIDIA/AMD/Intel), quita bloatware, instala software explicando sus dependencias y su consumo de recursos, mantiene todo actualizado con winget, aplica ajustes, configura cuentas (con verificación en dos pasos), une el equipo a Active Directory o a Microsoft Entra ID, sincroniza con Intune, diagnostica el sistema y busca malware, y crea USB de instalación de Windows 11 que dejan el equipo configurado sin intervención.
 
-**Versión 2.3.0 · noviembre de 2026**
+**Versión 2.4.0 · noviembre de 2026** · [novedades](CHANGELOG.md)
 
 | Equipo y perfiles | Software con consumo real de RAM |
 |---|---|
@@ -29,6 +29,8 @@ Herramienta portable para preparar, auditar y diagnosticar equipos Windows 11 de
 - **Perfiles**: Personal, Oficina (Microsoft 365), Oficina IT (sistemas, soporte y ciberseguridad), Gaming, Gaming + Streaming, Creativo, Desarrollo, Estudiante y Equipo básico.
 - **Cuentas y dominio**: cuentas locales, unión a Active Directory o Entra ID (la contraseña y el MFA los gestiona Microsoft; Eureka_Utils no los guarda), sincronización con Intune, unión híbrida y exportación del hash de Autopilot.
 - **Diagnóstico**: estado del sistema operativo, SFC, DISM, CHKDSK, diagnóstico de memoria y errores recientes.
+- **Tareas en paralelo**: puedes listar el hardware, analizar el sistema o medir la memoria mientras se instalan o actualizan aplicaciones. Lo que modifica el equipo va de uno en uno y espera en cola.
+- **Explicación de cada aviso (ⓘ)**: cada comprobación con aviso o fallo tiene un icono que explica a qué se debe y cómo solucionarlo, muestra los datos técnicos y prepara un informe (sin el nombre del equipo ni del usuario) para preguntar a la IA que elijas: Claude, Copilot, ChatGPT, Gemini, Perplexity, Le Chat u otra.
 - **Antivirus y malware**: estado de Microsoft Defender, análisis rápido, completo, de una carpeta o USB y sin conexión, y Microsoft Safety Scanner portátil para llevar en el USB.
 - **Consolas MMC**: acceso directo a las consolas de administración de Windows (y a las de RSAT si están instaladas).
 - **USB de instalación**: formatea e instala Windows 11 y deja el equipo configurado con el perfil elegido.
@@ -58,6 +60,8 @@ También funciona sin interfaz, por ejemplo: `Eureka_Utils.cmd -Perfil "Oficina 
 
 La documentación completa (guía de instalación, manual de usuario, guía del USB de instalación de Windows y documentación técnica, en HTML y PDF con capturas) se distribuye en el paquete completo de Eureka_Utils. En este repositorio:
 
+- [`CHANGELOG.md`](CHANGELOG.md): novedades de cada versión.
+- [`REGISTRO-DE-ERRORES.md`](REGISTRO-DE-ERRORES.md): cada error corregido en detalle (qué pasaba, por qué y cómo se ha solucionado).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): cómo informar de errores, proponer mejoras y colaborar con código.
 - [`SECURITY.md`](SECURITY.md): cómo informar de un problema de seguridad.
 - [`FIRMA-DE-CODIGO.md`](FIRMA-DE-CODIGO.md): estado y plan de la firma digital de los ejecutables.
@@ -88,6 +92,7 @@ Esta herramienta modifica el equipo (software, ajustes, cuentas, dominio). Toda 
 - **Gaming readiness**: checks UEFI, GPT, Secure Boot and TPM 2.0 for kernel anti-cheats, MBR→GPT conversion and reboot to firmware with per-vendor steps.
 - **Accounts and management**: local accounts, Active Directory, Microsoft Entra ID join with MFA, Intune sync, hybrid join and Autopilot hash export.
 - **Diagnostics and security**: SFC, DISM, CHKDSK, Microsoft Defender scans (including offline), portable Microsoft Safety Scanner and MMC consoles.
+- **Explained warnings (ⓘ)**: every warning or failed check has an info icon that explains the cause and the fix, shows the technical data and builds a privacy-safe report to ask the AI of your choice (Claude, Copilot, ChatGPT, Gemini, Perplexity, Le Chat…). Release notes in [CHANGELOG.md](CHANGELOG.md), detailed bug history in [REGISTRO-DE-ERRORES.md](REGISTRO-DE-ERRORES.md).
 - **Unattended Windows 11 install USB** that finishes the configuration on first logon.
 - UI in English, Spanish, French, Portuguese, Basque, Catalan, Valencian and Galician, with light and dark themes.
 

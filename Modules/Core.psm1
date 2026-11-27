@@ -12,9 +12,12 @@ function Set-CfgEnvironment {
     param(
         [Parameter(Mandatory)][string]$Root,
         [string]$LogFile,
-        $LogQueue
+        $LogQueue,
+        [string]$LogTag
     )
     $script:CfgRoot = $Root
+    # Con varias tareas en paralelo, cada línea del registro lleva el nombre de su tarea
+    $script:LogTag = $LogTag
     # CFG_DATA lo fija el ejecutable de un solo archivo: registros y exportaciones
     # quedan junto al .exe y no en la carpeta temporal donde se extrae.
     $script:CfgData = $(if ($env:CFG_DATA) { $env:CFG_DATA } else { $Root })
@@ -44,9 +47,18 @@ function Write-CfgLog {
         [Parameter(Mandatory, Position = 0)][AllowEmptyString()][string]$Message,
         [Parameter(Position = 1)][ValidateSet('INFO', 'OK', 'WARN', 'ERROR', 'STEP')][string]$Level = 'INFO'
     )
+    if ($script:LogTag) { $Message = '{{{0}}} {1}' -f $script:LogTag, $Message }
     $line = '[{0}] [{1,-5}] {2}' -f (Get-Date -Format 'HH:mm:ss'), $Level, $Message
     if ($script:LogFile) {
-        try { Add-Content -Path $script:LogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
+        # Varias tareas en paralelo escriben en el mismo archivo: un mutex evita que choquen y se pierdan líneas
+        if (-not $script:LogMutex) { $script:LogMutex = New-Object System.Threading.Mutex($false, 'Local\EurekaUtilsLog') }
+        $own = $false
+        try {
+            try { $own = $script:LogMutex.WaitOne(3000) } catch [System.Threading.AbandonedMutexException] { $own = $true }
+            [IO.File]::AppendAllText($script:LogFile, $line + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding $true))
+        }
+        catch { }
+        finally { if ($own) { $script:LogMutex.ReleaseMutex() } }
     }
     if ($script:LogQueue) {
         $script:LogQueue.Enqueue($line)
@@ -75,7 +87,7 @@ function Get-CfgJson {
 }
 
 # Versión de Eureka_Utils: fuente única (Build-Exe la usa para los ejecutables)
-$script:CfgVersion = '2.3.0'
+$script:CfgVersion = '2.4.0'
 function Get-CfgVersion { return $script:CfgVersion }
 
 function Get-CfgDataRoot { if ($script:CfgData) { return $script:CfgData } return $script:CfgRoot }
@@ -383,11 +395,17 @@ function Test-CfgFolderSecurity {
     }
     catch { }
     $weak = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-7')
-    $write = [Security.AccessControl.FileSystemRights]'Write, Modify, FullControl, CreateFiles, AppendData, WriteData, ChangePermissions, TakeOwnership, Delete'
+    # Solo los bits que permiten escribir. (Antes se usaba "FullControl" en la máscara, que incluye
+    # también los de lectura: cualquier carpeta legible por Usuarios parecía insegura.)
+    # WriteData/CreateFiles 0x2, AppendData 0x4, WriteExtendedAttributes 0x10, DeleteSubdirectoriesAndFiles 0x40,
+    # WriteAttributes 0x100, Delete 0x10000, ChangePermissions 0x40000, TakeOwnership 0x80000,
+    # GENERIC_ALL 0x10000000 y GENERIC_WRITE 0x40000000 (en permisos heredables).
+    $write = [int64](0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000)
     $out = foreach ($a in (Get-Acl -Path $Path).Access) {
         if ($a.AccessControlType -ne 'Allow') { continue }
         try { $sid = $a.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { continue }
-        if ($weak -contains $sid -and ($a.FileSystemRights -band $write)) { [string]$a.IdentityReference }
+        $rights = ([int64][int]$a.FileSystemRights) -band [int64]4294967295
+        if ($weak -contains $sid -and ($rights -band $write)) { [string]$a.IdentityReference }
     }
     return @($out | Select-Object -Unique)
 }
@@ -395,10 +413,45 @@ function Test-CfgFolderSecurity {
 function Protect-CfgFolder {
     <# Deja la carpeta modificable solo por Administradores y SYSTEM (los usuarios pueden leer y ejecutar). #>
     param([Parameter(Mandatory)][string]$Path)
-    & (Get-CfgSystemExe 'icacls.exe') $Path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /T /C /Q | Out-Null
-    $ok = ($LASTEXITCODE -eq 0) -and -not @(Test-CfgFolderSecurity -Path $Path).Count
-    Write-CfgLog $(if ($ok) { "Carpeta protegida: solo administradores y SYSTEM pueden modificar $Path." } else { "No se pudieron ajustar los permisos de $Path (código $LASTEXITCODE)." }) $(if ($ok) { 'OK' } else { 'WARN' })
+    $icacls = Get-CfgSystemExe 'icacls.exe'
+    $Path = (Resolve-Path -LiteralPath $Path).Path.TrimEnd('\')
+    # 0) Copia de los permisos actuales para deshacer el cambio si algo sale mal
+    $backup = Join-Path $env:TEMP ('Eureka_Utils_permisos_{0}.txt' -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
+    & $icacls $Path /save $backup /T /C /Q 2>&1 | Out-Null
+    $hasBackup = Test-Path -LiteralPath $backup
+    # 1) Solo la carpeta raíz: sin herencia y con permisos que heredan subcarpetas y archivos.
+    #    No se usa /T aquí: (OI)(CI) solo es válido en carpetas y en los archivos fallaba DESPUÉS de
+    #    quitarles la herencia, que quedaban sin ningún permiso (nadie podía leer los módulos).
+    & $icacls $Path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /C /Q | Out-Null
+    $code = $LASTEXITCODE
+    # 2) Todo lo de dentro vuelve a heredar de la raíz (y pierde permisos explícitos que den escritura a otros)
+    if ($code -eq 0) { & $icacls (Join-Path $Path '*') /reset /T /C /Q | Out-Null; $code = $LASTEXITCODE }
+    # 3) Comprobación: el código de Eureka_Utils se sigue pudiendo leer
+    $unreadable = @(Get-CfgUnreadableCode -Root $Path)
+    if ($unreadable.Count) {
+        # Marcha atrás: nunca se deja Eureka_Utils sin poder leer su propio código
+        if ($hasBackup) { & $icacls (Split-Path $Path -Parent) /restore $backup /C /Q 2>&1 | Out-Null }
+        if (@(Get-CfgUnreadableCode -Root $Path).Count) { & $icacls (Join-Path $Path '*') /reset /T /C /Q 2>&1 | Out-Null }
+        Write-CfgLog ("La protección de la carpeta dejaba archivos sin acceso ({0}): se han restaurado los permisos anteriores." -f ($unreadable -join ', ')) WARN
+        $unreadable = @(Get-CfgUnreadableCode -Root $Path)
+        if ($hasBackup) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
+        return $false
+    }
+    if ($hasBackup) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
+    $ok =($code -eq 0) -and -not $unreadable.Count -and -not @(Test-CfgFolderSecurity -Path $Path).Count
+    if ($ok) { Write-CfgLog "Carpeta protegida: solo administradores y SYSTEM pueden modificar $Path." OK }
+    else { Write-CfgLog ("No se pudieron ajustar bien los permisos de {0} (código {1}){2}" -f $Path, $code, $(if ($unreadable.Count) { '. Sin acceso de lectura: ' + ($unreadable -join ', ') } else { '' })) WARN }
     return $ok
+}
+
+function Get-CfgUnreadableCode {
+    <# Archivos de código de Eureka_Utils que no se pueden leer (permisos rotos). Vacío = todo correcto. #>
+    param([Parameter(Mandatory)][string]$Root)
+    $files = @(Get-ChildItem -LiteralPath (Join-Path $Root 'Modules'), (Join-Path $Root 'UI'), (Join-Path $Root 'Lang') -File -ErrorAction SilentlyContinue)
+    $files += @(Get-Item -LiteralPath (Join-Path $Root 'Eureka_Utils.ps1') -ErrorAction SilentlyContinue)
+    foreach ($f in $files) {
+        try { [IO.File]::OpenRead($f.FullName).Dispose() } catch { $f.Name }
+    }
 }
 
 Export-ModuleMember -Function *

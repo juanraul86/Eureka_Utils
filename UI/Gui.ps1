@@ -2,17 +2,6 @@
 # Las tareas largas se ejecutan en un runspace aparte para que la ventana no se congele;
 # el registro llega a la interfaz a través de una cola concurrente.
 
-$script:TaskButtons = @(
-    'BtnRefresh', 'BtnRestorePoint', 'BtnApplyProfile', 'BtnReport', 'BtnSwDetect', 'BtnSwUninstall', 'BtnSwInstall',
-    'BtnUpScan', 'BtnUpSources', 'BtnUpSelected', 'BtnUpAll', 'BtnBwDetect', 'BtnBwRemove', 'BtnBwRestore', 'BtnTwApply',
-    'BtnAccCheck', 'BtnAccCreate', 'BtnAccAddAdmin', 'BtnAccUsersRefresh',
-    'BtnDomCheck', 'BtnDomJoin', 'BtnRename', 'BtnDomLeave', 'BtnGpUpdate', 'BtnIntuneSync', 'BtnHybridJoin', 'BtnMdmEnroll',
-    'BtnMdmDiag', 'BtnAutopilot', 'BtnBattery', 'BtnUsbReadIso', 'BtnUsbCreate', 'BtnUsbSaveXml',
-    'BtnDiagRun', 'BtnSfc', 'BtnDismScan', 'BtnDismRestore', 'BtnChkdsk', 'BtnEnergy', 'BtnDiagEvents',
-    'BtnSecRun', 'BtnSigUpdate', 'BtnScanQuick', 'BtnScanFull', 'BtnScanFolder', 'BtnScanOffline', 'BtnMsert',
-    'BtnMemRefresh', 'BtnDrvList', 'BtnDrvScan', 'BtnDrvInstall', 'BtnDrvFolder', 'BtnDrvBackup', 'BtnFwCheck', 'BtnFwPrepare', 'BtnMbrValidate', 'BtnMbrConvert', 'BtnClearData', 'BtnUpdDownload'
-)
-
 $script:Palettes = @{
     Light = @{
         Bg = '#F3F4F6'; Surface = '#FFFFFF'; SurfaceAlt = '#F9FAFB'; Border = '#E5E7EB'; BorderStrong = '#D1D5DB'
@@ -126,12 +115,63 @@ function Get-CfgSelectedIds {
     return @($Table.Rows | Where-Object { $_['Selected'] -eq $true } | ForEach-Object { [string]$_[$Column] })
 }
 
-function Set-CfgBusy {
-    param([bool]$Busy, [string]$Title)
-    foreach ($n in $script:TaskButtons) { if ($script:Ui[$n]) { $script:Ui[$n].IsEnabled = -not $Busy } }
-    $script:Ui.Progress.IsIndeterminate = $Busy
-    $script:Ui.Progress.Visibility = $(if ($Busy) { 'Visible' } else { 'Hidden' })
-    if ($Busy) { $script:Ui.StatusText.Text = "$Title..." }
+# ------------------------------------------------------------------ tareas en paralelo
+# Varias tareas pueden ejecutarse a la vez, cada una en su runspace. Cada tarea tiene un "cerrojo":
+# dos tareas con el mismo cerrojo no se ejecutan a la vez (la segunda espera en cola) y con cerrojos
+# distintos sí. Todo lo que modifica Windows o las aplicaciones comparte el cerrojo 'cambios' (dos
+# instaladores a la vez fallan); lo que solo lee usa su propio título y va en paralelo con todo.
+# '*' = exclusiva: espera a que no haya nada en marcha y nada empieza mientras dura.
+$script:MaxParallelTasks = 4
+$script:TaskLockRules = @(
+    @{ Lock = '*';        Titles = @('Borrar registros e informes') }
+    @{ Lock = 'usb';      Titles = @('Leyendo ISO', 'Guardando autounattend.xml', 'Creando USB de instalación') }
+    @{ Lock = 'defender'; Titles = @('Actualizar firmas', 'Análisis rápido', 'Análisis completo', 'Analizar carpeta o unidad...', 'Defender sin conexión', 'Microsoft Safety Scanner') }
+    @{ Lock = 'gestion';  Titles = @('gpupdate', 'Sincronización Intune', 'Diagnóstico MDM', 'Hash de Autopilot') }
+    @{ Lock = 'cambios';  Titles = @('Post-instalación', 'Punto de restauración', 'Perfil ', 'Instalación de software', 'Desinstalación de software', 'Orígenes de winget',
+            'Actualizando aplicaciones', 'Actualizando todo', 'Eliminación de bloatware', 'Reinstalación de apps', 'Aplicando ajustes', 'Creando ', 'Administrador: ',
+            'Unión a ', 'Renombrar a ', 'Salir del dominio', 'Unión híbrida', 'Inscripción MDM', 'Instalando controladores', 'Preparar actualización de BIOS',
+            'Convertir el disco a GPT', 'Comprobar conversión MBR → GPT') }
+)
+
+function Get-CfgTaskLock {
+    <# Cerrojo de una tarea a partir de su título (en español o ya traducido). #>
+    param([Parameter(Mandatory)][string]$Title)
+    foreach ($r in $script:TaskLockRules) {
+        foreach ($p in $r.Titles) {
+            if ($Title.StartsWith($p, [StringComparison]::OrdinalIgnoreCase) -or $Title.StartsWith((T $p.Trim()), [StringComparison]::OrdinalIgnoreCase)) { return $r.Lock }
+        }
+    }
+    return "tarea:$Title"
+}
+
+function Test-CfgTaskConflict {
+    <# Devuelve la tarea en marcha que impide empezar otra con este cerrojo (o $null). #>
+    param([string]$Lock)
+    $jobs = @($script:G.Jobs)
+    if (-not $jobs.Count) { return $null }
+    if ($Lock -eq '*') { return $jobs[0] }
+    $c = @($jobs | Where-Object { $_.Lock -eq $Lock -or $_.Lock -eq '*' }) | Select-Object -First 1
+    if ($c) { return $c }
+    if ($jobs.Count -ge $script:MaxParallelTasks) { return $jobs[0] }
+    return $null
+}
+
+function Update-CfgTaskStatus {
+    <# Barra de progreso, contador de tareas en curso y botones de las tareas que se están ejecutando. #>
+    $jobs = @($script:G.Jobs)
+    $pending = @($script:G.Pending)
+    $busy = $jobs.Count -gt 0
+    $script:Ui.Progress.IsIndeterminate = $busy
+    $script:Ui.Progress.Visibility = $(if ($busy) { 'Visible' } else { 'Hidden' })
+    if ($busy -or $pending.Count) {
+        $txt = (T '{0} en curso') -f $jobs.Count
+        if ($pending.Count) { $txt += ' · ' + ((T '{0} en espera') -f $pending.Count) }
+        $script:Ui.TaskCount.Text = $txt
+        $tip = @($jobs | ForEach-Object { '▶ ' + $_.Title }) + @($pending | ForEach-Object { '⏸ ' + $_.Title })
+        $script:Ui.TaskCount.ToolTip = ($tip -join "`n")
+        $script:Ui.TaskCount.Visibility = 'Visible'; $script:Ui.TaskCountBox.Visibility = 'Visible'
+    }
+    else { $script:Ui.TaskCountBox.Visibility = 'Collapsed' }
 }
 
 function Start-CfgTask {
@@ -139,14 +179,48 @@ function Start-CfgTask {
         [Parameter(Mandatory)][string]$Title,
         [Parameter(Mandatory)][scriptblock]$Script,
         [object[]]$Arguments = @(),
-        [scriptblock]$OnComplete
+        [scriptblock]$OnComplete,
+        [scriptblock]$Then,
+        [string]$Lock,
+        $Button
     )
+    $original = $Title
     $Title = T $Title
-    if ($script:G.Job) {
-        Show-CfgMessage ((T 'Espera a que termine la tarea en curso: {0}.') -f $script:G.Job.Title) | Out-Null
+    if (-not $Lock) { $Lock = Get-CfgTaskLock -Title $original }
+    # Botón que ha lanzado la tarea (en los clics, $this es el botón): se desactiva solo ese
+    if (-not $Button -and $this -is [System.Windows.Controls.Primitives.ButtonBase]) { $Button = $this }
+    $req = @{ Title = $Title; Script = $Script; Arguments = $Arguments; OnComplete = $OnComplete; Thens = (New-Object System.Collections.ArrayList); Lock = $Lock; Button = $Button }
+    if ($Then) { [void]$req.Thens.Add($Then) }
+
+    # La misma tarea ya está en espera: no se repite, solo se suma lo que haya que hacer al terminar
+    $same = @($script:G.Pending | Where-Object { $_.Title -eq $Title }) | Select-Object -First 1
+    if ($same) {
+        if ($Then) { [void]$same.Thens.Add($Then) }
+        $script:Ui.StatusText.Text = (T '{0}: ya está en espera.') -f $Title
         return
     }
-    Write-CfgLog "── $Title ──" STEP
+    $conflict = Test-CfgTaskConflict -Lock $Lock
+    if ($conflict) {
+        [void]$script:G.Pending.Add($req)
+        Write-CfgLog ("{0}: en espera hasta que termine «{1}»." -f $Title, $conflict.Title)
+        $script:Ui.StatusText.Text = (T '{0}: empezará cuando termine «{1}».') -f $Title, $conflict.Title
+        Update-CfgTaskStatus
+        return
+    }
+    Start-CfgTaskNow $req
+}
+
+function Start-CfgTaskNow {
+    param([Parameter(Mandatory)]$Req)
+    # Cada tarea vuelve a cargar los módulos desde disco: si los permisos de la carpeta están dañados,
+    # se explica aquí en vez de fallar con "no se reconoce como nombre de un cmdlet".
+    $bad = @(Get-CfgUnreadableCode -Root $script:G.Root)
+    if ($bad.Count) {
+        Write-CfgLog ("No se puede ejecutar '{0}': sin permiso de lectura en {1}." -f $Req.Title, ($bad -join ', ')) ERROR
+        Show-CfgMessage ((T "Eureka_Utils no puede leer sus propios archivos ({0}): los permisos de la carpeta están dañados.`n`nCierra Eureka_Utils, abre PowerShell como administrador y ejecuta:`nicacls `"{1}\*`" /reset /T /C") -f (($bad | Select-Object -First 4) -join ', '), $script:G.Root) 'Error' | Out-Null
+        return
+    }
+    Write-CfgLog "── $($Req.Title) ──" STEP
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $iss.ExecutionPolicy = [Microsoft.PowerShell.ExecutionPolicy]::Bypass
     $iss.ImportPSModule([string[]]$script:G.Modules)
@@ -155,13 +229,52 @@ function Start-CfgTask {
     $rs.Open()
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    [void]$ps.AddScript('param($r, $l, $q) Set-CfgEnvironment -Root $r -LogFile $l -LogQueue $q | Out-Null')
-    [void]$ps.AddArgument($script:G.Root).AddArgument($script:G.LogFile).AddArgument($script:G.Queue)
+    [void]$ps.AddScript('param($r, $l, $q, $t) Set-CfgEnvironment -Root $r -LogFile $l -LogQueue $q -LogTag $t | Out-Null')
+    [void]$ps.AddArgument($script:G.Root).AddArgument($script:G.LogFile).AddArgument($script:G.Queue).AddArgument($Req.Title)
     [void]$ps.AddStatement()
-    [void]$ps.AddScript($Script.ToString())
-    foreach ($a in $Arguments) { [void]$ps.AddArgument($a) }
-    $script:G.Job = @{ PS = $ps; RS = $rs; Handle = $ps.BeginInvoke(); Title = $Title; OnComplete = $OnComplete }
-    Set-CfgBusy $true $Title
+    [void]$ps.AddScript($Req.Script.ToString())
+    foreach ($a in $Req.Arguments) { [void]$ps.AddArgument($a) }
+    $Req.PS = $ps; $Req.RS = $rs; $Req.Started = Get-Date
+    # Solo se desactiva el botón de esta tarea (el resto de la aplicación sigue disponible); al terminar
+    # recupera el estado que tenía, para no activar botones que la aplicación desactiva a propósito
+    if ($Req.Button) { $Req.ButtonWasEnabled = $Req.Button.IsEnabled; $Req.Button.IsEnabled = $false }
+    $Req.Handle = $ps.BeginInvoke()
+    [void]$script:G.Jobs.Add($Req)
+    $script:Ui.StatusText.Text = "$($Req.Title)..."
+    Update-CfgTaskStatus
+}
+
+function Start-CfgPendingTasks {
+    <# Arranca las tareas en espera cuyo cerrojo ya está libre (en el orden en que se pidieron). #>
+    foreach ($p in @($script:G.Pending)) {
+        if (Test-CfgTaskConflict -Lock $p.Lock) { if ($p.Lock -eq '*') { break } else { continue } }
+        $script:G.Pending.Remove($p)
+        Start-CfgTaskNow $p
+    }
+    Update-CfgTaskStatus
+}
+
+function Complete-CfgTask {
+    param([Parameter(Mandatory)]$Job)
+    $script:G.Jobs.Remove($Job)
+    if ($Job.Button -and -not @($script:G.Jobs | Where-Object { $_.Button -eq $Job.Button }).Count) { $Job.Button.IsEnabled = [bool]$Job.ButtonWasEnabled }
+    $output = $null
+    try { $output = $Job.PS.EndInvoke($Job.Handle) }
+    catch { Write-CfgLog "La tarea '$($Job.Title)' falló: $($_.Exception.Message)" ERROR }
+    foreach ($e in $Job.PS.Streams.Error) { Write-CfgLog "{$($Job.Title)} $e" ERROR }
+    $Job.PS.Dispose(); $Job.RS.Close(); $Job.RS.Dispose()
+    Update-CfgTaskStatus
+    $fails = @($output | Where-Object { $_ -and $_.PSObject.Properties['Success'] -and -not $_.Success })
+    if ($fails.Count) {
+        Write-CfgLog ("{0}: {1} acción(es) con error -> {2}" -f $Job.Title, $fails.Count, (($fails | ForEach-Object { $_.Name }) -join ', ')) WARN
+    }
+    if ($Job.OnComplete) {
+        try { & $Job.OnComplete $output } catch { Write-CfgLog "Error al actualizar la interfaz ($($Job.Title)): $($_.Exception.Message)" ERROR }
+    }
+    elseif (-not $fails.Count) { $script:Ui.StatusText.Text = "$($Job.Title): completado." }
+    foreach ($t in @($Job.Thens)) {
+        try { & $t } catch { Write-CfgLog "Error al continuar tras '$($Job.Title)': $($_.Exception.Message)" ERROR }
+    }
 }
 
 function Invoke-CfgTimerTick {
@@ -175,25 +288,12 @@ function Invoke-CfgTimerTick {
         $script:Ui.LogBox.ScrollToEnd()
         $script:Ui.StatusText.Text = ($last -replace '^\[[^\]]+\]\s*\[[^\]]+\]\s*', '').Trim()
     }
-    $job = $script:G.Job
-    if ($job -and $job.Handle.IsCompleted) {
-        $script:G.Job = $null
-        $output = $null
-        try { $output = $job.PS.EndInvoke($job.Handle) }
-        catch { Write-CfgLog "La tarea '$($job.Title)' falló: $($_.Exception.Message)" ERROR }
-        foreach ($e in $job.PS.Streams.Error) { Write-CfgLog "$e" ERROR }
-        $job.PS.Dispose(); $job.RS.Close(); $job.RS.Dispose()
-        Set-CfgBusy $false
-        $fails = @($output | Where-Object { $_ -and $_.PSObject.Properties['Success'] -and -not $_.Success })
-        if ($fails.Count) {
-            Write-CfgLog ("{0}: {1} acción(es) con error -> {2}" -f $job.Title, $fails.Count, (($fails | ForEach-Object { $_.Name }) -join ', ')) WARN
-        }
-        if ($job.OnComplete) {
-            try { & $job.OnComplete $output } catch { Write-CfgLog "Error al actualizar la interfaz: $($_.Exception.Message)" ERROR }
-        }
-        elseif (-not $fails.Count) { $script:Ui.StatusText.Text = "$($job.Title): completado." }
-    }
+    $done = @($script:G.Jobs | Where-Object { $_.Handle.IsCompleted })
+    foreach ($job in $done) { Complete-CfgTask $job }
+    if ($done.Count -or ($script:G.Pending.Count -and $script:G.Jobs.Count -lt $script:MaxParallelTasks)) { Start-CfgPendingTasks }
 }
+
+function Test-CfgTasksRunning { return ($script:G.Jobs.Count -gt 0 -or $script:G.Pending.Count -gt 0) }
 
 # ------------------------------------------------------------------ detección
 
@@ -224,27 +324,20 @@ $script:DetectScript = {
 
 function Start-CfgDetection {
     param([scriptblock]$Then)
-    $script:G.AfterDetection = $Then
-    Start-CfgTask -Title 'Detectando estado del equipo' -Script $script:DetectScript -OnComplete {
+    # Si ya hay una detección en marcha, se repite al terminar (los datos pueden haber cambiado)
+    Start-CfgTask -Title 'Detectando estado del equipo' -Script $script:DetectScript -Then $Then -OnComplete {
         param($out)
         if ($out -and $out.Count) { Set-CfgDetectionResult $out[0].psobject.BaseObject }
-        $next = $script:G.AfterDetection
-        $script:G.AfterDetection = $null
-        if ($next) { & $next }
     }
 }
 
 function Start-CfgUpdateScan {
     param([scriptblock]$Then)
-    $script:G.AfterUpdates = $Then
-    Start-CfgTask -Title 'Buscando actualizaciones' -Arguments @([bool]$script:Ui.UpUnknown.IsChecked) -Script {
+    Start-CfgTask -Title 'Buscando actualizaciones' -Arguments @([bool]$script:Ui.UpUnknown.IsChecked) -Then $Then -Script {
         param($Unknown) Get-CfgWingetUpgrades -IncludeUnknown:$Unknown
     } -OnComplete {
         param($out)
         Set-CfgUpdateList @($out | ForEach-Object { $_ })
-        $next = $script:G.AfterUpdates
-        $script:G.AfterUpdates = $null
-        if ($next) { & $next }
     }
 }
 
@@ -277,7 +370,7 @@ function Set-CfgDetectionResult {
                 [pscustomobject]@{ Model = $_.Model; Media = $_.Media; Bus = $_.Bus; SizeText = "$($_.SizeGB) GB"; Health = $_.Health; SystemText = $(if ($_.System) { T 'Sí' } else { '' }) }
             })
     }
-    if ($R.Compat) { $u.HwCompatList.ItemsSource = @(ConvertTo-CfgCheckView $R.Compat) }
+    if ($R.Compat) { $u.HwCompatList.ItemsSource = @(ConvertTo-CfgCheckView $R.Compat -Area (T 'Compatibilidad con Windows 11')) }
     if ($R.Rec) {
         $script:G.Rec = @($R.Rec)
         $u.HwRecList.ItemsSource = @($R.Rec | ForEach-Object { [pscustomobject]@{ Nivel = (T $_.Nivel); Texto = $_.Texto; SoftwareId = $_.SoftwareId } })
@@ -501,6 +594,213 @@ function Show-CfgInstallFailures {
     if ((Show-CfgMessage -Text $msg -Icon 'Warning' -Buttons 'YesNo') -eq 'Yes') {
         foreach ($x in $f) { if ($x.Link) { Write-CfgLog ("Abriendo descarga manual de {0}: {1}{2}" -f $x.Name, $x.Link, $(if ($x.PSObject.Properties["Sha256"] -and $x.Sha256) { " · SHA-256 esperado: " + $x.Sha256 } else { "" })); Start-Process ([string]$x.Link) } }
     }
+}
+
+# ------------------------------------------------------------------ detalle de avisos (icono "i")
+
+$script:AiProviders = @(
+    [pscustomobject]@{ Id = 'claude';     Name = 'Claude';            Url = 'https://claude.ai/new' }
+    [pscustomobject]@{ Id = 'copilot';    Name = 'Microsoft Copilot'; Url = 'https://copilot.microsoft.com/' }
+    [pscustomobject]@{ Id = 'chatgpt';    Name = 'ChatGPT';           Url = 'https://chatgpt.com/' }
+    [pscustomobject]@{ Id = 'gemini';     Name = 'Google Gemini';     Url = 'https://gemini.google.com/app' }
+    [pscustomobject]@{ Id = 'perplexity'; Name = 'Perplexity';        Url = 'https://www.perplexity.ai/' }
+    [pscustomobject]@{ Id = 'mistral';    Name = 'Le Chat (Mistral)'; Url = 'https://chat.mistral.ai/chat' }
+    [pscustomobject]@{ Id = 'copy';       Name = '';                  Url = '' }
+)
+
+function Get-CfgCheckReport {
+    <# Texto listo para pegar en una IA: la comprobación, la explicación, el equipo, datos técnicos y el registro. #>
+    param($Item, $Help, [string[]]$Evidence, $Environment, [string[]]$LogLines, [bool]$Anon)
+    $sb = New-Object System.Text.StringBuilder
+    $w = { param($t) [void]$sb.AppendLine($t) }
+    & $w (T 'Ayúdame a entender y resolver este aviso de Eureka_Utils, un configurador portable de Windows 11. Dime a qué se debe lo más probable, si es grave y los pasos para solucionarlo, empezando por los más sencillos y seguros. Si necesitas más datos, dime qué comandos de PowerShell ejecutar.')
+    & $w ''
+    & $w ('## ' + (T 'Comprobación'))
+    & $w ('- {0}: {1}' -f (T 'Apartado'), $Item.Area)
+    & $w ('- {0}: {1}' -f (T 'Comprobación'), $Item.Clave)
+    & $w ('- {0}: {1}' -f (T 'Resultado'), $Item.Codigo)
+    & $w ('- {0}: {1}' -f (T 'Detalle'), $Item.DetalleEs)
+    & $w ''
+    & $w ('## ' + (T 'Explicación de Eureka_Utils'))
+    & $w ('{0}: {1}' -f (T 'A qué se debe'), (T $Help.Cause))
+    & $w ('{0}: {1}' -f (T 'Cómo solucionarlo'), (T $Help.Solution))
+    & $w ''
+    & $w ('## ' + (T 'Equipo'))
+    foreach ($k in $Environment.Keys) { & $w ('- {0}: {1}' -f (T $k), $Environment[$k]) }
+    if (@($Evidence).Count) {
+        & $w ''
+        & $w ('## ' + (T 'Datos técnicos'))
+        foreach ($l in $Evidence) { & $w "- $l" }
+    }
+    if (@($LogLines).Count) {
+        & $w ''
+        & $w ('## ' + (T 'Registro de Eureka_Utils (últimas líneas)'))
+        & $w '```'
+        foreach ($l in $LogLines) { & $w $l }
+        & $w '```'
+    }
+    $text = $sb.ToString().TrimEnd()
+    if ($Anon) { $text = Protect-CfgPrivateText $text }
+    return $text
+}
+
+function New-CfgCheckDetailWindow {
+    <# Ventana con la explicación de una fila de comprobación (no OK) y el informe para la IA. #>
+    param([Parameter(Mandatory)]$Item)
+    $help = Get-CfgCheckHelp -Check $Item.Clave
+    $evidence = @(Get-CfgCheckEvidence -Check $Item.Clave)
+    $envInfo = Get-CfgIssueEnvironment
+    $log = @()
+    if ($script:G.LogFile -and (Test-Path $script:G.LogFile)) { $log = @(Get-Content -LiteralPath $script:G.LogFile -Tail 60 -Encoding UTF8 -ErrorAction SilentlyContinue) }
+
+    $shell = '<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="840" Height="760" MinWidth="560" MinHeight="480" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"/>'
+    $body = @'
+<DockPanel xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{DynamicResource Bg}">
+  <Border DockPanel.Dock="Top" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="20,14">
+    <StackPanel Orientation="Horizontal">
+      <Grid Width="30" Height="30" VerticalAlignment="Top" Margin="0,2,0,0">
+        <Ellipse x:Name="DDot" Fill="#D97706"/>
+        <TextBlock Text="i" FontFamily="Georgia" FontWeight="Bold" FontSize="18" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Grid>
+      <StackPanel Margin="14,0,0,0">
+        <TextBlock x:Name="DTitle" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Text}" TextWrapping="Wrap"/>
+        <TextBlock x:Name="DSub" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+  <Border DockPanel.Dock="Bottom" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="20,12">
+    <StackPanel>
+      <WrapPanel>
+        <TextBlock x:Name="DAiLabel" VerticalAlignment="Center" Foreground="{DynamicResource Text}" Margin="0,0,8,8"/>
+        <ComboBox x:Name="DAi" Width="200" DisplayMemberPath="Label" Margin="0,0,8,8"/>
+        <Button x:Name="DAsk" Style="{DynamicResource PrimaryButton}"/>
+        <Button x:Name="DCopy"/>
+        <Button x:Name="DSave"/>
+        <Button x:Name="DLog"/>
+        <Button x:Name="DClose"/>
+      </WrapPanel>
+      <TextBlock x:Name="DHint" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+    </StackPanel>
+  </Border>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,10">
+    <StackPanel>
+      <TextBlock x:Name="HWhat" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,6,0,4"/>
+      <TextBox x:Name="DWhat" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Text}" TextWrapping="Wrap" Padding="0"/>
+      <TextBlock x:Name="HCause" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,14,0,4"/>
+      <TextBox x:Name="DCause" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Text}" TextWrapping="Wrap" Padding="0"/>
+      <TextBlock x:Name="HFix" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,14,0,4"/>
+      <TextBox x:Name="DFix" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Text}" TextWrapping="Wrap" Padding="0"/>
+      <TextBlock x:Name="HEvidence" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,14,0,4"/>
+      <TextBox x:Name="DEvidence" IsReadOnly="True" FontFamily="Consolas" FontSize="12" MaxHeight="150" Background="{DynamicResource LogBg}" Foreground="{DynamicResource LogText}" BorderThickness="0" Padding="8" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+      <DockPanel Margin="0,14,0,4">
+        <CheckBox x:Name="DAnon" DockPanel.Dock="Right" IsChecked="True" VerticalAlignment="Center"/>
+        <TextBlock x:Name="HReport" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+      </DockPanel>
+      <TextBox x:Name="DReport" IsReadOnly="True" FontFamily="Consolas" FontSize="12" Height="230" Background="{DynamicResource LogBg}" Foreground="{DynamicResource LogText}" BorderThickness="0" Padding="8" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+    </StackPanel>
+  </ScrollViewer>
+</DockPanel>
+'@
+    $win = [Windows.Markup.XamlReader]::Parse($shell)
+    $main = $script:Ui.Window
+    foreach ($k in @($main.Resources.Keys)) { $win.Resources[$k] = $main.Resources[$k] }
+    $content = [Windows.Markup.XamlReader]::Parse($body)
+    $win.Content = $content
+    $d = @{ Window = $win }
+    foreach ($m in [regex]::Matches($body, 'x:Name="([^"]+)"')) { $d[$m.Groups[1].Value] = $content.FindName($m.Groups[1].Value) }
+    if ($main.IsLoaded) { $win.Owner = $main }
+    $win.Icon = $main.Icon
+    $win.Language = $main.Language
+
+    $isFail = $Item.Codigo -in @('FALLO', 'ERROR', 'CRÍTICO')
+    $d.DDot.Fill = [System.Windows.Media.BrushConverter]::new().ConvertFromString($(if ($isFail) { '#DC2626' } elseif ($Item.Codigo -eq 'AVISO') { '#D97706' } else { '#0F6CBD' }))
+    $win.Title = '{0} · {1}' -f $Item.Comprobacion, $Item.Resultado
+    $d.DTitle.Text = $Item.Comprobacion
+    $d.DSub.Text = '{0} · {1}' -f $Item.Resultado, $Item.Area
+    $d.HWhat.Text = T 'Qué ocurre'
+    $d.DWhat.Text = '{0} — {1}' -f $Item.Comprobacion, $Item.Detalle
+    $d.HCause.Text = T 'A qué se debe'
+    $d.DCause.Text = T $help.Cause
+    $d.HFix.Text = T 'Cómo solucionarlo'
+    $d.DFix.Text = T $help.Solution
+    $d.HEvidence.Text = T 'Datos técnicos'
+    $d.DEvidence.Text = ($evidence -join "`r`n")
+    if (-not $evidence.Count) { $d.HEvidence.Visibility = 'Collapsed'; $d.DEvidence.Visibility = 'Collapsed' }
+    $d.HReport.Text = T 'Informe para la IA (equipo, datos técnicos y registro)'
+    $d.DAnon.Content = T 'Ocultar el nombre del equipo y del usuario'
+    $d.DAiLabel.Text = T 'Preguntar a:'
+    $d.DAsk.Content = T 'Preguntar a la IA'
+    $d.DCopy.Content = T 'Copiar informe'
+    $d.DSave.Content = T 'Guardar informe'
+    $d.DLog.Content = T 'Abrir registro completo'
+    $d.DClose.Content = T 'Cerrar'
+    $d.DHint.Text = T 'Al preguntar, el informe se copia al portapapeles y se abre la web de la IA elegida: pégalo con Ctrl+V y envíalo. Eureka_Utils no envía nada por su cuenta.'
+
+    $copyLabel = T 'Otra IA (solo copiar)'
+    $items = @($script:AiProviders | ForEach-Object { [pscustomobject]@{ Id = $_.Id; Url = $_.Url; Label = $(if ($_.Name) { $_.Name } else { $copyLabel }) } })
+    $d.DAi.ItemsSource = $items
+    $prefs = Get-CfgPrefs
+    $sel = 0
+    if ($prefs.PSObject.Properties['AiProvider']) { for ($i = 0; $i -lt $items.Count; $i++) { if ($items[$i].Id -eq $prefs.AiProvider) { $sel = $i } } }
+    $d.DAi.SelectedIndex = $sel
+
+    $state = @{ Item = $Item; Help = $help; Evidence = $evidence; Env = $envInfo; Log = $log; D = $d }
+    $script:G.Detail = $state
+    $d.DReport.Text = Get-CfgCheckReport -Item $Item -Help $help -Evidence $evidence -Environment $envInfo -LogLines $log -Anon $true
+    $render = { $s = $script:G.Detail; $s.D.DReport.Text = Get-CfgCheckReport -Item $s.Item -Help $s.Help -Evidence $s.Evidence -Environment $s.Env -LogLines $s.Log -Anon ([bool]$s.D.DAnon.IsChecked) }
+    $d.DAnon.Add_Checked($render); $d.DAnon.Add_Unchecked($render)
+    $d.DCopy.Add_Click({ if (Copy-CfgDetailReport) { $script:G.Detail.D.DHint.Text = T 'Informe copiado al portapapeles.' } })
+    $d.DAsk.Add_Click({
+            $s = $script:G.Detail
+            $ai = $s.D.DAi.SelectedItem
+            if (-not $ai) { return }
+            Save-CfgPrefs ([pscustomobject]@{ AiProvider = $ai.Id })
+            if (-not (Copy-CfgDetailReport)) { $s.D.DHint.Text = T 'No se ha podido copiar al portapapeles: selecciona el informe y cópialo con Ctrl+C.'; return }
+            if ($ai.Url) {
+                Write-CfgLog ("Informe de '{0}' copiado al portapapeles; abriendo {1}." -f $s.Item.Clave, $ai.Label)
+                Start-Process $ai.Url
+                $s.D.DHint.Text = (T 'Informe copiado. En {0}, pega con Ctrl+V y envía la consulta.') -f $ai.Label
+            }
+            else { $s.D.DHint.Text = T 'Informe copiado al portapapeles: pégalo en la IA que prefieras con Ctrl+V.' }
+        })
+    $d.DSave.Add_Click({
+            $s = $script:G.Detail
+            $dlg = New-Object Microsoft.Win32.SaveFileDialog
+            $dlg.InitialDirectory = Get-CfgExportFolder
+            $dlg.FileName = 'Eureka_Utils_{0}_{1}.md' -f (($s.Item.Clave -replace '[^\w]+', '_').Trim('_')), (Get-Date -Format 'yyyyMMdd_HHmmss')
+            $dlg.Filter = 'Markdown (*.md)|*.md|Texto (*.txt)|*.txt'
+            if ($dlg.ShowDialog($s.D.Window)) {
+                [IO.File]::WriteAllText($dlg.FileName, $s.D.DReport.Text, (New-Object System.Text.UTF8Encoding $true))
+                $s.D.DHint.Text = (T 'Informe guardado en {0}') -f $dlg.FileName
+            }
+        })
+    $d.DLog.Add_Click({ if ($script:G.LogFile) { Start-Process (Get-CfgSystemExe 'notepad.exe') $script:G.LogFile } })
+    $d.DClose.Add_Click({ $script:G.Detail.D.Window.Close() })
+    $win.Add_SourceInitialized({
+            try {
+                $h = (New-Object System.Windows.Interop.WindowInteropHelper $script:G.Detail.D.Window).Handle
+                $val = [int]($script:G.EffectiveTheme -eq 'Dark')
+                [void][CfgNative.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$val, 4)
+            }
+            catch { }
+        })
+    $win.Add_KeyDown({ param($s, $e) if ($e.Key -eq 'Escape') { $script:G.Detail.D.Window.Close() } })
+    return $win
+}
+
+function Copy-CfgDetailReport {
+    try { [System.Windows.Clipboard]::SetText($script:G.Detail.D.DReport.Text); return $true } catch { return $false }
+}
+
+function Show-CfgCheckDetail {
+    param([Parameter(Mandatory)]$Item)
+    $main = $script:Ui.Window
+    $main.Cursor = [System.Windows.Input.Cursors]::Wait
+    try { $win = New-CfgCheckDetailWindow -Item $Item }
+    catch { Write-CfgLog "No se pudo abrir el detalle de '$($Item.Clave)': $($_.Exception.Message)" ERROR; return }
+    finally { $main.Cursor = $null }
+    [void]$win.ShowDialog()
+    $script:G.Detail = $null
 }
 
 # ------------------------------------------------------------------ actualizaciones
@@ -802,7 +1102,7 @@ function Set-CfgFirmwareView {
     }
     $u.FwInfoList.ItemsSource = @(ConvertTo-CfgKeyValue $disp)
     $u.FwAdvice.Text = $(if ($null -eq $months) { '' } elseif ($months -ge 24) { (T '⚠ La BIOS tiene más de 2 años ({0} meses). Los fabricantes publican versiones con parches de seguridad, compatibilidad con nuevos procesadores y memoria, y estabilidad: revisa si hay una más reciente.') -f $months } elseif ($months -ge 12) { T 'La BIOS tiene más de un año: conviene comprobar si hay una versión más reciente.' } else { T '✓ La BIOS es reciente (menos de un año).' })
-    $u.GameChecks.ItemsSource = @($R.Checks | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Comprobacion = (T $_.Comprobacion); Resultado = (T $_.Resultado); Detalle = (T $_.Detalle) } })
+    $u.GameChecks.ItemsSource = @(ConvertTo-CfgCheckView $R.Checks -Area (T 'TPM 2.0, UEFI y arranque seguro (juegos con antitrampas)') -TranslateDetail)
     $u.FwGuide.Text = (@($R.Guide) | ForEach-Object { T $_ }) -join ' '
     $u.BtnMbrConvert.IsEnabled = ($fw.DiskStyle -eq 'MBR')
 }
@@ -951,7 +1251,8 @@ function Show-CfgGui {
         LogFile     = $LogFile
         Queue       = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
         Modules     = @($CfgModuleNames | ForEach-Object { Join-Path $Root "Modules\$_.psm1" } | Where-Object { Test-Path $_ })
-        Job         = $null
+        Jobs        = (New-Object System.Collections.ArrayList)
+        Pending     = (New-Object System.Collections.ArrayList)
         SwCatalog   = @(Get-CfgSoftwareCatalog)
         SwById      = @{}
         SwState     = @{}
@@ -1042,7 +1343,7 @@ function Show-CfgGui {
             $script:Ui.Tabs.SelectedIndex = 2
         })
     $ui.BtnBattery.Add_Click({
-            Start-CfgTask -Title 'Informe de batería' -Script { New-CfgBatteryReport } -OnComplete { param($out) if ($out -and $out[0].Success) { Start-Process $out[0].Message } }
+            Start-CfgTask -Title 'Informe de batería' -Script { New-CfgBatteryReport } -OnComplete { param($out) if ($out -and $out[0].Success -and $out[0].Message -and (Test-Path -LiteralPath $out[0].Message)) { Start-Process $out[0].Message } elseif ($out -and $out[0].Success) { $script:Ui.StatusText.Text = T 'Este equipo no tiene batería.' } }
         })
     $ui.BtnDevMgr.Add_Click({ Start-CfgConsole -Id "devmgmt.msc" })
     $ui.BtnOptionalUpdates.Add_Click({ Start-Process 'ms-settings:windowsupdate-optionalupdates' })
@@ -1139,7 +1440,7 @@ function Show-CfgGui {
     $ui.BtnAccCheck.Add_Click({
             $upn = $script:Ui.AccUpn.Text.Trim()
             if (-not (Test-CfgUpn $upn)) { Show-CfgMessage 'Escribe la cuenta profesional como usuario@empresa.com.' 'Warning' | Out-Null; return }
-            Start-CfgTask -Title "Comprobando $upn" -Arguments @($upn) -Script { param($U) Test-CfgWorkAccount -Upn $U } -OnComplete { param($out) $script:Ui.AccChecks.ItemsSource = @($out | ForEach-Object { $_ }) }
+            Start-CfgTask -Title "Comprobando $upn" -Arguments @($upn) -Script { param($U) Test-CfgWorkAccount -Upn $U } -OnComplete { param($out) $script:Ui.AccChecks.ItemsSource = @(ConvertTo-CfgCheckView $out -Area (T 'Cuenta profesional (Microsoft 365 / Entra ID) con verificación en dos pasos')) }
         })
     $ui.BtnAccJoinEntra.Add_Click({ Invoke-CfgAccountFlow 'aadj' })
     $ui.BtnAccIntune.Add_Click({ Invoke-CfgAccountFlow 'mdm' })
@@ -1167,7 +1468,7 @@ function Show-CfgGui {
     $ui.BtnDomCheck.Add_Click({
             $d = $script:Ui.DomName.Text.Trim()
             if (-not $d) { Show-CfgMessage 'Indica el dominio (FQDN), por ejemplo corp.contoso.local.' | Out-Null; return }
-            Start-CfgTask -Title "Requisitos para $d" -Arguments @($d) -Script { param($D) Test-CfgDomainPrerequisites -Domain $D } -OnComplete { param($out) $script:Ui.DomChecks.ItemsSource = @($out | ForEach-Object { $_ }) }
+            Start-CfgTask -Title "Requisitos para $d" -Arguments @($d) -Script { param($D) Test-CfgDomainPrerequisites -Domain $D } -OnComplete { param($out) $script:Ui.DomChecks.ItemsSource = @(ConvertTo-CfgCheckView $out -Area (T 'Active Directory (local)')) }
         })
     $ui.BtnDomJoin.Add_Click({
             $d = $script:Ui.DomName.Text.Trim(); $ou = $script:Ui.DomOU.Text.Trim(); $nn = $script:Ui.DomNewName.Text.Trim()
@@ -1275,7 +1576,7 @@ function Show-CfgGui {
 
     # ---------------- Diagnóstico y seguridad
     $ui.BtnDiagRun.Add_Click({
-            Start-CfgTask -Title (T 'Analizando el sistema') -Script { Get-CfgSystemHealth } -OnComplete { param($out) $script:Ui.DiagChecks.ItemsSource = @(ConvertTo-CfgCheckView $out) }
+            Start-CfgTask -Title (T 'Analizando el sistema') -Script { Get-CfgSystemHealth } -OnComplete { param($out) $script:Ui.DiagChecks.ItemsSource = @(ConvertTo-CfgCheckView $out -Area (T 'Estado del sistema operativo')) }
         })
     $ui.BtnDiagEvents.Add_Click({
             Start-CfgTask -Title (T 'Cargar errores') -Script { Get-CfgRecentErrors } -OnComplete { param($out) $script:Ui.DiagEvents.ItemsSource = @($out | ForEach-Object { $_ }) }
@@ -1299,7 +1600,7 @@ function Show-CfgGui {
     $ui.BtnPerfReport.Add_Click({ Start-Process (Get-CfgSystemExe "perfmon.exe") -ArgumentList '/report' })
     $ui.BtnSecRun.Add_Click({
             Start-CfgTask -Title (T 'Comprobar seguridad') -Script { @{ C = @(Get-CfgSecurityStatus); T = @(Get-CfgThreats) } } -OnComplete {
-                param($out) $r = $out[0].psobject.BaseObject; $script:Ui.SecChecks.ItemsSource = @(ConvertTo-CfgCheckView $r.C); $script:Ui.SecThreats.ItemsSource = @($r.T)
+                param($out) $r = $out[0].psobject.BaseObject; $script:Ui.SecChecks.ItemsSource = @(ConvertTo-CfgCheckView $r.C -Area (T 'Antivirus y malware')); $script:Ui.SecThreats.ItemsSource = @($r.T)
             }
         })
     $ui.BtnSigUpdate.Add_Click({ Start-CfgTask -Title (T 'Actualizar firmas') -Script { Update-CfgDefenderSignatures } })
@@ -1351,7 +1652,8 @@ function Show-CfgGui {
     $ui.BtnDrvExport.Add_Click({
             if (-not @($script:G.Devices).Count) { Show-CfgMessage "Primero pulsa 'Listar todo el hardware'." | Out-Null; return }
             $p = Join-Path (Get-CfgExportFolder) ('Hardware_{0}_{1}.csv' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyyMMdd_HHmmss'))
-            $script:G.Devices | Select-Object Clase, Dispositivo, Fabricante, Version, Fecha, Firmado, Estado | Export-Csv -Path $p -NoTypeInformation -Encoding UTF8 -Delimiter ';'
+            try { $script:G.Devices | Select-Object Clase, Dispositivo, Fabricante, Version, Fecha, Firmado, Estado | Export-Csv -Path $p -NoTypeInformation -Encoding UTF8 -Delimiter ';' -ErrorAction Stop }
+            catch { Write-CfgLog "No se pudo exportar la lista de hardware a $p`: $($_.Exception.Message)" ERROR; Show-CfgMessage ((T 'No se ha podido guardar la lista en {0}. Revisa los permisos de la carpeta Exports o ejecuta Eureka_Utils como administrador.') -f $p) 'Warning' | Out-Null; return }
             Write-CfgLog "Lista de hardware exportada a $p" OK
             Start-Process (Get-CfgSystemExe 'explorer.exe') "/select,`"$p`""
         })
@@ -1447,6 +1749,13 @@ function Show-CfgGui {
             }
         })
 
+    # ---------------- Icono "i" de las filas de comprobación (Diagnóstico, Hardware, Drivers y BIOS, Cuentas...)
+    $window.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, [System.Windows.RoutedEventHandler] {
+            param($s, $e)
+            $b = $e.OriginalSource
+            if ($b -is [System.Windows.Controls.Button] -and $b.Uid -eq 'CheckInfo' -and $b.Tag) { $e.Handled = $true; Show-CfgCheckDetail $b.Tag }
+        })
+
     # ---------------- Registro
     $ui.BtnClearData.Add_Click({
             if (-not (Confirm-CfgAction 'Se borrarán los registros anteriores y todo lo exportado (informes HTML, listas de hardware, hash de Autopilot, diagnósticos MDM y copias de controladores). Contienen el nombre del equipo, usuarios y software instalado. No se puede deshacer. ¿Borrar?')) { return }
@@ -1461,10 +1770,21 @@ function Show-CfgGui {
     $timer.Add_Tick({ Invoke-CfgTimerTick })
     $timer.Start()
 
+    # Red de seguridad: un error inesperado en cualquier botón se registra y se explica, sin cerrar Eureka_Utils
+    $window.Dispatcher.Add_UnhandledException({
+            param($s, $e)
+            $e.Handled = $true
+            try {
+                Write-CfgLog ("Error inesperado en la interfaz: {0}" -f $e.Exception.Message) ERROR
+                $script:Ui.StatusText.Text = (T 'Error inesperado: {0}. Detalle en la pestaña Registro.') -f $e.Exception.Message
+            }
+            catch { }
+        })
     $window.Add_Closing({
             param($s, $e)
-            if ($script:G.Job -and -not $script:G.CapturePath) {
-                if (-not (Confirm-CfgAction "Hay una tarea en curso ($($script:G.Job.Title)). Si cierras ahora puede quedar a medias. ¿Cerrar de todos modos?")) { $e.Cancel = $true }
+            if ((Test-CfgTasksRunning) -and -not $script:G.CapturePath) {
+                $names = (@($script:G.Jobs) + @($script:G.Pending) | ForEach-Object { $_.Title }) -join ', '
+                if (-not (Confirm-CfgAction ((T 'Hay tareas en curso o en espera ({0}). Si cierras ahora pueden quedar a medias. ¿Cerrar de todos modos?') -f $names))) { $e.Cancel = $true }
             }
         })
     $window.Add_SourceInitialized({ Set-CfgTheme $script:G.Theme })
